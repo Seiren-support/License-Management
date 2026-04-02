@@ -805,7 +805,7 @@ window.openNewLicenseModal = () => {
         <div><label class="lbl">初回本数 *</label><input type="number" id="nl_count" min="1" placeholder="例: 100"></div>
         <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="nl_cost" min="0" placeholder="例: 48000"></div>
         <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="nl_sell" min="0" placeholder="例: 54000"></div>
-        <div style="grid-column:span 2;"><label class="lbl">理由 *</label><input id="nl_reason" placeholder="例: 全社導入のため"></div>
+        <div style="grid-column:span 2;"><label class="lbl">理由（任意）</label><input id="nl_reason" placeholder="例: 全社導入のため"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -831,7 +831,7 @@ window.saveLicense = async () => {
   const sell   = Number(document.getElementById('nl_sell')?.value || 0);
   const reason = document.getElementById('nl_reason')?.value?.trim();
 
-  if (!name || !start || !ann || count <= 0 || !reason) {
+  if (!name || !start || !ann || count <= 0) {
     toast('必須項目を入力してください', 'error'); return;
   }
   try {
@@ -858,7 +858,23 @@ window.openHistoryModal = (licId) => {
   const typeColor = { '新規':'#1d4ed8', '追加':'#15803d', '削減':'#b91c1c', '更新':'#6d28d9' };
   const typeDot = { '新規':'#3b82f6', '追加':'#22c55e', '削減':'#ef4444', '更新':'#a855f7' };
 
-  const histHTML = [...(lic.history || [])].sort((a, b) => (b.date||'').localeCompare(a.date||'')).map(rec => `
+  const sortedHist = [...(lic.history || [])].sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  const histHTML = sortedHist.map((rec, idx) => {
+    const prev = sortedHist[idx + 1];
+    // 年額 ÷ 365 × 30 で月額換算して比較
+    const toMonthly = (annual) => Math.round((annual || 0) / 365 * 30);
+    const recCostM  = toMonthly(rec.costPrice);
+    const recSellM  = toMonthly(rec.sellingPrice);
+    const prevCostM = prev ? toMonthly(prev.costPrice) : null;
+    const prevSellM = prev ? toMonthly(prev.sellingPrice) : null;
+    const costDiffM = prev ? recCostM - prevCostM : 0;
+    const sellDiffM = prev ? recSellM - prevSellM : 0;
+    const diffTag = (diff) => diff > 0
+      ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:3px;font-weight:700;">▲${fmt(diff)}/月</span>`
+      : `<span style="font-size:10px;background:#f0fdf4;color:#059669;padding:1px 5px;border-radius:3px;font-weight:700;">▼${fmt(Math.abs(diff))}/月</span>`;
+    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
+    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
+    return `
     <div style="position:relative;padding-left:20px;margin-bottom:14px;">
       <div style="position:absolute;left:-5px;top:5px;width:12px;height:12px;border-radius:50%;background:${typeDot[rec.type]||'#94a3b8'};border:3px solid #fff;box-shadow:0 0 0 1px #e2e8f0;"></div>
       <div style="background:#f8fafc;border-radius:10px;padding:12px 14px;border:1px solid #e2e8f0;">
@@ -874,13 +890,14 @@ window.openHistoryModal = (licId) => {
           </div>
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <div style="flex:1;font-size:12px;color:#475569;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;">${esc(rec.reason||'')}</div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-align:right;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;white-space:nowrap;">
-            原価: ${fmt(rec.costPrice)}<br>売価: <span style="color:#1e293b;">${fmt(rec.sellingPrice)}</span><br><span style="color:#cbd5e1;">年額/税抜</span>
+          ${rec.reason ? `<div style="flex:1;font-size:12px;color:#475569;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;">${esc(rec.reason)}</div>` : '<div style="flex:1;"></div>'}
+          <div style="font-size:11px;font-weight:600;text-align:right;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;white-space:nowrap;line-height:2;">
+            ${costLabel}<br>${sellLabel}<br><span style="color:#cbd5e1;font-size:10px;">※年額登録・月額は年額÷365×30換算</span>
           </div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   openModal(`<div class="modal modal-lg">
     <div class="modal-header">
@@ -931,7 +948,7 @@ window.openHistoryModal = (licId) => {
           <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="h_cost" value="${last.costPrice||''}" placeholder="例: 48000"></div>
           <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="h_sell" value="${last.sellingPrice||''}" placeholder="例: 54000"></div>
           <div style="grid-column:span 2;display:flex;align-items:flex-end;gap:10px;">
-            <div style="flex:1;"><label class="lbl">理由（必須）</label><input id="h_reason" placeholder="例: 新規メンバー増員のため"></div>
+            <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="h_reason" placeholder="例: 新規メンバー増員のため"></div>
             <button class="btn btn-primary" onclick="saveHistory('${licId}')">
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
               保存する
@@ -952,7 +969,7 @@ window.saveHistory = async (licId) => {
   const cost   = Number(document.getElementById('h_cost')?.value || 0);
   const sell   = Number(document.getElementById('h_sell')?.value || 0);
   const reason = document.getElementById('h_reason')?.value?.trim();
-  if (!date || !reason) { toast('日付と理由を入力してください', 'error'); return; }
+  if (!date) { toast('日付を入力してください', 'error'); return; }
   const actualCount = type === '削減' ? -Math.abs(count) : count;
   const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: res, costPrice: cost, sellingPrice: sell };
   try {
