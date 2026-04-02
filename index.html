@@ -346,19 +346,19 @@ function toast(msg, type = 'default') {
 window.toast = toast;
 
 // ===== 確認ダイアログ =====
-function showConfirm(message, onOk) {
+function showConfirm(message, onOk, okLabel = '削除する', okColor = '#dc2626', iconSvg = '<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/>') {
   document.getElementById('confirmModal')?.remove();
   const ov = document.createElement('div');
   ov.id = 'confirmModal';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
-  ov.innerHTML = `<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:360px;box-shadow:0 24px 60px rgba(15,23,42,.25);animation:slideUp .18s ease;text-align:center;">
+  ov.innerHTML = `<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 60px rgba(15,23,42,.25);animation:slideUp .18s ease;text-align:center;">
     <div style="width:48px;height:48px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-      <svg width="22" height="22" fill="none" stroke="#dc2626" stroke-width="2.5" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg>
+      <svg width="22" height="22" fill="none" stroke="${okColor}" stroke-width="2.5" viewBox="0 0 24 24">${iconSvg}</svg>
     </div>
-    <div style="font-size:14px;font-weight:700;color:#1e293b;line-height:1.7;margin-bottom:22px;white-space:pre-line;">${message}</div>
+    <div style="font-size:13px;font-weight:700;color:#1e293b;line-height:1.8;margin-bottom:22px;white-space:pre-line;text-align:left;">${message}</div>
     <div style="display:flex;gap:10px;">
       <button id="cfCancel" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;font-weight:700;color:#94a3b8;cursor:pointer;font-family:'Noto Sans JP',sans-serif;">キャンセル</button>
-      <button id="cfOk" style="flex:1;padding:10px;border-radius:8px;border:none;background:#dc2626;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:'Noto Sans JP',sans-serif;">削除する</button>
+      <button id="cfOk" style="flex:1;padding:10px;border-radius:8px;border:none;background:${okColor};font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:'Noto Sans JP',sans-serif;">${okLabel}</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
@@ -945,19 +945,27 @@ window.openHistoryModal = (licId) => {
     </div>
     <div class="modal-body">
       <!-- サマリー -->
-      <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;divide-x:divide-solid;">
-        <div>
-          <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:4px;">現在の総本数</div>
-          <div style="font-size:28px;font-weight:900;color:#1d4ed8;">${total} <span style="font-size:12px;color:#93c5fd;">本</span></div>
+      <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:12px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#3b82f6;margin-bottom:4px;">現在の総本数</div>
+            <div style="font-size:28px;font-weight:900;color:#1d4ed8;">${total} <span style="font-size:12px;color:#93c5fd;">本</span></div>
+          </div>
+          <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
+            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">次回応当日</div>
+            <div style="font-size:16px;font-weight:900;color:#1e293b;">${lic.anniversaryDate||'未設定'}</div>
+            <div style="margin-top:4px;">${alertBadge(lic)}</div>
+          </div>
+          <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
+            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">通知設定</div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">更新の ${lic.notificationPeriod||3}ヶ月前</div>
+          </div>
         </div>
-        <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
-          <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">次回応当日</div>
-          <div style="font-size:16px;font-weight:900;color:#1e293b;">${lic.anniversaryDate||'未設定'}</div>
-          <div style="margin-top:4px;">${alertBadge(lic)}</div>
-        </div>
-        <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
-          <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">通知設定</div>
-          <div style="font-size:13px;font-weight:700;color:#1e293b;">更新の ${lic.notificationPeriod||3}ヶ月前</div>
+        <div style="border-top:1px solid #bfdbfe;padding-top:12px;display:flex;justify-content:flex-end;">
+          <button onclick="openEditLicenseModal('${licId}')" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #bfdbfe;background:#fff;color:#3b82f6;font-family:'Noto Sans JP',sans-serif;transition:all .15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#fff'">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            基本情報を編集
+          </button>
         </div>
       </div>
 
@@ -1022,6 +1030,126 @@ window.deleteHistory = (licId, histId) => {
       toast('履歴を削除しました');
       closeModal();
     } catch(e) { toast('削除失敗: ' + e.message, 'error'); }
+  });
+};
+
+// ===== 基本情報編集モーダル =====
+window.openEditLicenseModal = (licId) => {
+  const lic = state.licenses.find(l => l.id === licId); if (!lic) return;
+  const cats = [...state.categories].sort((a,b)=>naturalSort(a.name, b.name));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
+  const catOptions = cats.map(c => `<option value="${esc(c.name)}"${lic.category===c.name?' selected':''}>${esc(c.name)}</option>`).join('');
+  const resOptions = ress.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+
+  // 初回レコード取得
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+
+  // 通知設定のoptions
+  const notifOptions = [1,2,3,4,5,6].map(n =>
+    `<option value="${n}"${(lic.notificationPeriod||3)===n?' selected':''}>${n}ヵ月前</option>`
+  ).join('');
+
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">基本情報の編集</div>
+        <div style="font-size:16px;font-weight:900;color:#1e293b;">${esc(lic.name||'')}</div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div><label class="lbl">カテゴリ *</label><select id="el_cat">${catOptions}</select></div>
+        <div><label class="lbl">製品名 *</label><input id="el_name" value="${esc(lic.name||'')}" placeholder="例: Microsoft 365 E3"></div>
+        <div><label class="lbl">契約開始日 *</label><input type="date" id="el_start" value="${lic.contractStartDate||''}"></div>
+        <div><label class="lbl">応当日（次回更新日） *</label><input type="date" id="el_ann" value="${lic.anniversaryDate||''}"></div>
+        <div style="grid-column:span 2;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">契約更新のお知らせ通知</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">更新期限の何ヶ月前から通知するか</div>
+          </div>
+          <select id="el_notif" style="width:120px;">${notifOptions}</select>
+        </div>
+
+        <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:12px;">初回購入情報</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+            <div>
+              <label class="lbl">リセラー</label>
+              <select id="el_res">${resOptions.replace(`value="${esc(firstRec.reseller||'')}"`, `value="${esc(firstRec.reseller||'')}" selected`)}</select>
+            </div>
+            <div><label class="lbl">初回本数</label><input type="number" id="el_count" value="${firstRec.count||''}" min="1" placeholder="例: 100"></div>
+            <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="el_cost" value="${firstRec.costPrice||''}" placeholder="例: 48000"></div>
+            <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="el_sell" value="${firstRec.sellingPrice||''}" placeholder="例: 54000"></div>
+          </div>
+          <div style="margin-top:12px;"><label class="lbl">初回登録時の理由（任意）</label><input id="el_reason" value="${esc(firstRec.reason||'')}" placeholder="例: 全社導入のため"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="confirmEditLicense('${licId}')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        変更内容を確認する
+      </button>
+    </div>
+  </div>`);
+};
+
+window.confirmEditLicense = (licId) => {
+  const lic = state.licenses.find(l => l.id === licId); if (!lic) return;
+  const newCat   = document.getElementById('el_cat')?.value?.trim();
+  const newName  = document.getElementById('el_name')?.value?.trim();
+  const newStart = document.getElementById('el_start')?.value;
+  const newAnn   = document.getElementById('el_ann')?.value;
+  const newNotif = Number(document.getElementById('el_notif')?.value || 3);
+  const newRes   = document.getElementById('el_res')?.value?.trim();
+  const newCount = Number(document.getElementById('el_count')?.value || 0);
+  const newCost  = Number(document.getElementById('el_cost')?.value || 0);
+  const newSell  = Number(document.getElementById('el_sell')?.value || 0);
+  const newReason= document.getElementById('el_reason')?.value?.trim();
+
+  if (!newName || !newStart || !newAnn) { toast('必須項目を入力してください', 'error'); return; }
+
+  // 変更点を列挙
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+  const changes = [];
+  if (newCat   !== lic.category)              changes.push(`カテゴリ: ${lic.category||'―'} → ${newCat}`);
+  if (newName  !== lic.name)                  changes.push(`製品名: ${lic.name||'―'} → ${newName}`);
+  if (newStart !== lic.contractStartDate)     changes.push(`契約開始日: ${lic.contractStartDate||'―'} → ${newStart}`);
+  if (newAnn   !== lic.anniversaryDate)       changes.push(`応当日: ${lic.anniversaryDate||'―'} → ${newAnn}`);
+  if (newNotif !== (lic.notificationPeriod||3)) changes.push(`通知設定: ${lic.notificationPeriod||3}ヵ月前 → ${newNotif}ヵ月前`);
+  if (newRes   !== (firstRec.reseller||''))   changes.push(`リセラー: ${firstRec.reseller||'―'} → ${newRes}`);
+  if (newCount !== (firstRec.count||0))       changes.push(`初回本数: ${firstRec.count||0}本 → ${newCount}本`);
+  if (newCost  !== (firstRec.costPrice||0))   changes.push(`原価: ¥${(firstRec.costPrice||0).toLocaleString()} → ¥${newCost.toLocaleString()}`);
+  if (newSell  !== (firstRec.sellingPrice||0))changes.push(`売価: ¥${(firstRec.sellingPrice||0).toLocaleString()} → ¥${newSell.toLocaleString()}`);
+  if (newReason!== (firstRec.reason||''))     changes.push(`初回理由: 変更あり`);
+
+  const changeText = changes.length > 0
+    ? changes.join('\n')
+    : '変更はありません';
+
+  showConfirm(`以下の内容に変更します。よろしいですか？\n\n${changeText}`,
+    async () => {
+    try {
+      // 初回レコードを更新
+      const updatedHistory = (lic.history||[]).map(h => {
+        if (h.id === firstRec.id) {
+          return { ...h, reseller: newRes, count: newCount, costPrice: newCost, sellingPrice: newSell, reason: newReason, date: newStart };
+        }
+        return h;
+      },
+    '変更する', '#3b82f6',
+    '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'
+  );
+      await dbUpdate('licenses', licId, {
+        category: newCat, name: newName, contractStartDate: newStart,
+        anniversaryDate: newAnn, notificationPeriod: newNotif,
+        history: updatedHistory
+      });
+      toast('基本情報を更新しました ✓');
+      closeModal();
+    } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
   });
 };
 
