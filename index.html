@@ -1098,59 +1098,57 @@ window.openEditLicenseModal = (licId) => {
 
 window.confirmEditLicense = (licId) => {
   const lic = state.licenses.find(l => l.id === licId); if (!lic) return;
-  const newCat   = document.getElementById('el_cat')?.value?.trim();
-  const newName  = document.getElementById('el_name')?.value?.trim();
-  const newStart = document.getElementById('el_start')?.value;
-  const newAnn   = document.getElementById('el_ann')?.value;
-  const newNotif = Number(document.getElementById('el_notif')?.value || 3);
-  const newRes   = document.getElementById('el_res')?.value?.trim();
-  const newCount = Number(document.getElementById('el_count')?.value || 0);
-  const newCost  = Number(document.getElementById('el_cost')?.value || 0);
-  const newSell  = Number(document.getElementById('el_sell')?.value || 0);
-  const newReason= document.getElementById('el_reason')?.value?.trim();
+  const newCat    = document.getElementById('el_cat')?.value?.trim();
+  const newName   = document.getElementById('el_name')?.value?.trim();
+  const newStart  = document.getElementById('el_start')?.value;
+  const newAnn    = document.getElementById('el_ann')?.value;
+  const newNotif  = Number(document.getElementById('el_notif')?.value || 3);
+  const newRes    = document.getElementById('el_res')?.value?.trim();
+  const newCount  = Number(document.getElementById('el_count')?.value || 0);
+  const newCost   = Number(document.getElementById('el_cost')?.value || 0);
+  const newSell   = Number(document.getElementById('el_sell')?.value || 0);
+  const newReason = document.getElementById('el_reason')?.value?.trim();
 
   if (!newName || !newStart || !newAnn) { toast('必須項目を入力してください', 'error'); return; }
 
-  // 変更点を列挙
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
   const changes = [];
-  if (newCat   !== lic.category)              changes.push(`カテゴリ: ${lic.category||'―'} → ${newCat}`);
-  if (newName  !== lic.name)                  changes.push(`製品名: ${lic.name||'―'} → ${newName}`);
-  if (newStart !== lic.contractStartDate)     changes.push(`契約開始日: ${lic.contractStartDate||'―'} → ${newStart}`);
-  if (newAnn   !== lic.anniversaryDate)       changes.push(`応当日: ${lic.anniversaryDate||'―'} → ${newAnn}`);
-  if (newNotif !== (lic.notificationPeriod||3)) changes.push(`通知設定: ${lic.notificationPeriod||3}ヵ月前 → ${newNotif}ヵ月前`);
-  if (newRes   !== (firstRec.reseller||''))   changes.push(`リセラー: ${firstRec.reseller||'―'} → ${newRes}`);
-  if (newCount !== (firstRec.count||0))       changes.push(`初回本数: ${firstRec.count||0}本 → ${newCount}本`);
-  if (newCost  !== (firstRec.costPrice||0))   changes.push(`原価: ¥${(firstRec.costPrice||0).toLocaleString()} → ¥${newCost.toLocaleString()}`);
-  if (newSell  !== (firstRec.sellingPrice||0))changes.push(`売価: ¥${(firstRec.sellingPrice||0).toLocaleString()} → ¥${newSell.toLocaleString()}`);
-  if (newReason!== (firstRec.reason||''))     changes.push(`初回理由: 変更あり`);
+  if (newCat    !== (lic.category||''))            changes.push(`カテゴリ: ${lic.category||'―'} → ${newCat}`);
+  if (newName   !== (lic.name||''))                changes.push(`製品名: ${lic.name||'―'} → ${newName}`);
+  if (newStart  !== (lic.contractStartDate||''))   changes.push(`契約開始日: ${lic.contractStartDate||'―'} → ${newStart}`);
+  if (newAnn    !== (lic.anniversaryDate||''))     changes.push(`応当日: ${lic.anniversaryDate||'―'} → ${newAnn}`);
+  if (newNotif  !== (lic.notificationPeriod||3))   changes.push(`通知設定: ${lic.notificationPeriod||3}ヵ月前 → ${newNotif}ヵ月前`);
+  if (newRes    !== (firstRec.reseller||''))       changes.push(`リセラー: ${firstRec.reseller||'―'} → ${newRes}`);
+  if (newCount  !== (firstRec.count||0))           changes.push(`初回本数: ${firstRec.count||0}本 → ${newCount}本`);
+  if (newCost   !== (firstRec.costPrice||0))       changes.push(`原価: ¥${(firstRec.costPrice||0).toLocaleString()} → ¥${newCost.toLocaleString()}`);
+  if (newSell   !== (firstRec.sellingPrice||0))    changes.push(`売価: ¥${(firstRec.sellingPrice||0).toLocaleString()} → ¥${newSell.toLocaleString()}`);
+  if (newReason !== (firstRec.reason||''))         changes.push('初回理由: 変更あり');
 
-  const changeText = changes.length > 0
-    ? changes.join('\n')
-    : '変更はありません';
+  const changeText = changes.length > 0 ? changes.join('\n') : '変更はありません';
 
-  showConfirm(`以下の内容に変更します。よろしいですか？\n\n${changeText}`,
+  showConfirm(
+    `以下の内容に変更します。よろしいですか？\n\n${changeText}`,
     async () => {
-    try {
-      // 初回レコードを更新
-      const updatedHistory = (lic.history||[]).map(h => {
-        if (h.id === firstRec.id) {
-          return { ...h, reseller: newRes, count: newCount, costPrice: newCost, sellingPrice: newSell, reason: newReason, date: newStart };
-        }
-        return h;
-      },
-    '変更する', '#3b82f6',
+      try {
+        const updatedHistory = (lic.history||[]).map(h => {
+          if (h.id === firstRec.id) {
+            return { ...h, reseller: newRes, count: newCount, costPrice: newCost, sellingPrice: newSell, reason: newReason, date: newStart };
+          }
+          return h;
+        });
+        await dbUpdate('licenses', licId, {
+          category: newCat, name: newName, contractStartDate: newStart,
+          anniversaryDate: newAnn, notificationPeriod: newNotif,
+          history: updatedHistory
+        });
+        toast('基本情報を更新しました ✓');
+        closeModal();
+      } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
+    },
+    '変更する',
+    '#3b82f6',
     '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'
   );
-      await dbUpdate('licenses', licId, {
-        category: newCat, name: newName, contractStartDate: newStart,
-        anniversaryDate: newAnn, notificationPeriod: newNotif,
-        history: updatedHistory
-      });
-      toast('基本情報を更新しました ✓');
-      closeModal();
-    } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
-  });
 };
 
 // ===== カテゴリ CRUD =====
