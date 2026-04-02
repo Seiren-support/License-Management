@@ -282,6 +282,7 @@ let state = {
 };
 
 // ===== ユーティリティ =====
+const naturalSort = (a, b) => (a || '').localeCompare(b || '', 'ja', { numeric: true, sensitivity: 'base' });
 const fmt = (n) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(n || 0);
 const today = () => new Date().toISOString().slice(0, 10);
 const calcTotal = (hist) => (hist || []).reduce((s, r) => s + Number(r.count || 0), 0);
@@ -461,6 +462,10 @@ function renderList() {
     acc[cat].push(lic);
     return acc;
   }, {});
+  // カテゴリ内の製品を名前順（数字→英字→五十音）でソート
+  Object.keys(grouped).forEach(cat => {
+    grouped[cat].sort((a, b) => naturalSort(a.name, b.name));
+  });
 
   const totalCount = activeLicenses.reduce((s, l) => s + calcTotal(l.history || []), 0);
   const warnings = activeLicenses.filter(l => alertLevel(l) !== 'ok');
@@ -522,7 +527,7 @@ function renderList() {
     </tr>`;
   }).join('');
 
-  const groupBlocks = Object.entries(grouped).map(([cat, items]) => {
+  const groupBlocks = Object.entries(grouped).sort(([a],[b]) => naturalSort(a, b)).map(([cat, items]) => {
     const isOpen = state.expandedGroups[cat] !== false; // デフォルト開く
     return `<div style="border-bottom:1px solid #f1f5f9;last-child:border-bottom:0;">
       <div class="group-hdr" onclick="toggleGroup('${esc(cat)}')">
@@ -741,8 +746,8 @@ function renderAnalytics() {
 
 // ===== マスタ管理 =====
 function renderMasters() {
-  const cats = [...state.categories].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja'));
-  const ress = [...state.resellers].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja'));
+  const cats = [...state.categories].sort((a,b)=>naturalSort(a.name, b.name));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
   return `
   <div style="margin-bottom:16px;">
     <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">マスタ管理</h2>
@@ -799,8 +804,8 @@ window.deleteLicense = (id, name) => {
 
 // ===== 新規ライセンス登録モーダル =====
 window.openNewLicenseModal = () => {
-  const cats = [...state.categories].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja'));
-  const ress = [...state.resellers].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja'));
+  const cats = [...state.categories].sort((a,b)=>naturalSort(a.name, b.name));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
   const catOptions = cats.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
   const resOptions = ress.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
 
@@ -879,7 +884,7 @@ window.openHistoryModal = (licId) => {
   const lic = state.licenses.find(l => l.id === licId);
   if (!lic) return;
   const total = calcTotal(lic.history || []);
-  const ress = [...state.resellers].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja'));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
   const resOptions = ress.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
   const last = (lic.history || []).at(-1) || {};
 
