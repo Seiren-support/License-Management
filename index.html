@@ -489,6 +489,9 @@ function renderList() {
   const tableRows = (items) => items.map(lic => {
     const total = calcTotal(lic.history || []);
     const isActive = lic.active !== false;
+    // 初回登録（新規）レコードのリセラーを取得
+    const firstRecord = [...(lic.history || [])].sort((a, b) => (a.date||'').localeCompare(b.date||'')).find(h => h.type === '新規') || (lic.history||[])[0] || {};
+    const firstReseller = firstRecord.reseller || '―';
     return `<tr style="${isActive ? '' : 'opacity:.5;background:#f8fafc;'}">
       <td>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -497,6 +500,7 @@ function renderList() {
         </div>
       </td>
       <td><span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">${total} 本</span></td>
+      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(firstReseller)}</td>
       <td style="color:#64748b;font-size:12px;">${lic.contractStartDate || '―'}</td>
       <td style="color:#64748b;font-size:12px;">${getLastRenewalDate(lic)}</td>
       <td>
@@ -530,7 +534,7 @@ function renderList() {
       ${isOpen ? `<div style="overflow-x:auto;">
         <table class="tbl">
           <thead><tr>
-            <th>製品名</th><th>総本数</th><th>契約開始日</th><th>最終更新日</th><th>応当日（更新期限）</th><th style="text-align:right;">アクション</th>
+            <th>製品名</th><th>総本数</th><th>リセラー</th><th>契約開始日</th><th>最終更新日</th><th>応当日（更新期限）</th><th style="text-align:right;">アクション</th>
           </tr></thead>
           <tbody>${tableRows(items)}</tbody>
         </table>
@@ -961,7 +965,7 @@ window.openHistoryModal = (licId) => {
       <!-- 追加フォーム -->
       <div style="background:#f8fafc;border-radius:12px;padding:16px;border:1px solid #e2e8f0;">
         <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:12px;">新しく記録する</div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <div><label class="lbl">日付</label><input type="date" id="h_date" value="${today()}"></div>
           <div><label class="lbl">種別</label>
             <select id="h_type" onchange="if(this.value==='更新')document.getElementById('h_count').value=0;">
@@ -969,10 +973,9 @@ window.openHistoryModal = (licId) => {
             </select>
           </div>
           <div><label class="lbl">本数（増減分）</label><input type="number" id="h_count" placeholder="例: 10"></div>
-          <div><label class="lbl">リセラー</label><select id="h_res">${resOptions}</select></div>
           <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="h_cost" value="${last.costPrice||''}" placeholder="例: 48000"></div>
           <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="h_sell" value="${last.sellingPrice||''}" placeholder="例: 54000"></div>
-          <div style="grid-column:span 2;display:flex;align-items:flex-end;gap:10px;">
+          <div style="display:flex;align-items:flex-end;gap:10px;">
             <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="h_reason" placeholder="例: 新規メンバー増員のため"></div>
             <button class="btn btn-primary" onclick="saveHistory('${licId}')">
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
@@ -990,13 +993,15 @@ window.saveHistory = async (licId) => {
   const date   = document.getElementById('h_date')?.value;
   const type   = document.getElementById('h_type')?.value;
   const count  = Number(document.getElementById('h_count')?.value || 0);
-  const res    = document.getElementById('h_res')?.value;
   const cost   = Number(document.getElementById('h_cost')?.value || 0);
   const sell   = Number(document.getElementById('h_sell')?.value || 0);
   const reason = document.getElementById('h_reason')?.value?.trim();
   if (!date) { toast('日付を入力してください', 'error'); return; }
+  // リセラーは初回登録時のものを引き継ぐ
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+  const inheritedReseller = firstRec.reseller || '';
   const actualCount = type === '削減' ? -Math.abs(count) : count;
-  const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: res, costPrice: cost, sellingPrice: sell };
+  const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: inheritedReseller, costPrice: cost, sellingPrice: sell };
   try {
     await dbUpdate('licenses', licId, { history: [...(lic.history || []), newRec] });
     toast('履歴を追加しました ✓');
