@@ -276,6 +276,7 @@ let state = {
   resellers:  [],
   curTab: 'list',
   search: '',
+  showInactive: false,
   expandedGroups: {},
   user: null
 };
@@ -433,11 +434,23 @@ function render() {
   else if (state.curTab === 'masters')   mc.innerHTML = renderMasters();
 }
 window.setSearch = (v) => { state.search = v; render(); };
+window.toggleInactive = () => { state.showInactive = !state.showInactive; render(); };
+window.toggleLicenseActive = async (id, currentActive) => {
+  try {
+    await dbUpdate('licenses', id, { active: !currentActive });
+    toast(currentActive ? '無効にしました' : '有効にしました ✓');
+  } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
+};
 window.toggleGroup = (cat) => { state.expandedGroups[cat] = !state.expandedGroups[cat]; render(); };
 
 // ===== ライセンス一覧 =====
 function renderList() {
-  const filtered = state.licenses.filter(l =>
+  // active フラグ未設定は有効扱い（active !== false）
+  const activeLicenses   = state.licenses.filter(l => l.active !== false);
+  const inactiveLicenses = state.licenses.filter(l => l.active === false);
+  const visibleBase = state.showInactive ? state.licenses : activeLicenses;
+
+  const filtered = visibleBase.filter(l =>
     (l.name || '').toLowerCase().includes(state.search.toLowerCase()) ||
     (l.category || '').toLowerCase().includes(state.search.toLowerCase())
   );
@@ -449,8 +462,8 @@ function renderList() {
     return acc;
   }, {});
 
-  const totalCount = state.licenses.reduce((s, l) => s + calcTotal(l.history || []), 0);
-  const warnings = state.licenses.filter(l => alertLevel(l) !== 'ok');
+  const totalCount = activeLicenses.reduce((s, l) => s + calcTotal(l.history || []), 0);
+  const warnings = activeLicenses.filter(l => alertLevel(l) !== 'ok');
   const warningsSorted = [...warnings].sort((a, b) => diffDays(a.anniversaryDate) - diffDays(b.anniversaryDate));
 
   const warnPanel = warnings.length > 0 ? `
@@ -475,20 +488,28 @@ function renderList() {
 
   const tableRows = (items) => items.map(lic => {
     const total = calcTotal(lic.history || []);
-    const latest = getLatestInfo(lic.history || []);
-    return `<tr>
-      <td><span style="font-weight:700;color:#1e293b;">${esc(lic.name || '―')}</span></td>
+    const isActive = lic.active !== false;
+    return `<tr style="${isActive ? '' : 'opacity:.5;background:#f8fafc;'}">
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:700;color:${isActive ? '#1e293b' : '#94a3b8'};">${esc(lic.name || '―')}</span>
+          ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:4px;border:1px solid #e2e8f0;">無効</span>' : ''}
+        </div>
+      </td>
       <td><span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">${total} 本</span></td>
       <td style="color:#64748b;font-size:12px;">${lic.contractStartDate || '―'}</td>
       <td style="color:#64748b;font-size:12px;">${getLastRenewalDate(lic)}</td>
       <td>
         <span style="font-weight:700;font-size:12px;color:#1e293b;">${lic.anniversaryDate || '―'}</span>
-        <span style="margin-left:8px;">${alertBadge(lic)}</span>
+        <span style="margin-left:8px;">${isActive ? alertBadge(lic) : ''}</span>
       </td>
       <td style="text-align:right;">
-        <button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${lic.id}')">
+        ${isActive ? `<button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${lic.id}')">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           履歴・追加
+        </button>` : ''}
+        <button onclick="toggleLicenseActive('${lic.id}',${isActive})" title="${isActive ? '無効にする' : '有効にする'}" style="background:none;border:1.5px solid ${isActive ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive ? '#94a3b8' : '#059669'};margin-left:4px;padding:4px 8px;vertical-align:middle;transition:all .15s;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;" onmouseover="this.style.background='${isActive ? '#fef2f2' : '#f0fdf4'}';this.style.borderColor='${isActive ? '#fca5a5' : '#86efac'}';this.style.color='${isActive ? '#dc2626' : '#15803d'}'" onmouseout="this.style.background='';this.style.borderColor='${isActive ? '#e2e8f0' : '#bbf7d0'}';this.style.color='${isActive ? '#94a3b8' : '#059669'}'">
+          ${isActive ? '無効にする' : '有効にする'}
         </button>
         <button onclick="deleteLicense('${lic.id}','${esc(lic.name || '')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;vertical-align:middle;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg>
@@ -521,13 +542,17 @@ function renderList() {
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
     <div>
       <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">ライセンス一覧</h2>
-      <p style="font-size:12px;color:#94a3b8;">${state.licenses.length} 製品 ／ 総本数 ${totalCount} 本</p>
+      <p style="font-size:12px;color:#94a3b8;">有効 ${activeLicenses.length} 製品 ／ 総本数 ${totalCount} 本${inactiveLicenses.length > 0 ? ` ／ <span style="color:#94a3b8;">無効 ${inactiveLicenses.length} 件</span>` : ''}</p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <div style="position:relative;">
         <svg width="15" height="15" fill="none" stroke="#94a3b8" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" placeholder="製品名・カテゴリ検索..." value="${esc(state.search)}" oninput="setSearch(this.value)" style="padding-left:34px;width:220px;">
       </div>
+      <button onclick="toggleInactive()" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${state.showInactive ? '#6366f1' : '#e2e8f0'};background:${state.showInactive ? '#eef2ff' : '#fff'};color:${state.showInactive ? '#6366f1' : '#94a3b8'};font-family:'Noto Sans JP',sans-serif;display:flex;align-items:center;gap:6px;transition:all .15s;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+        ${state.showInactive ? '無効を非表示' : '無効も表示'}${inactiveLicenses.length > 0 ? ` (${inactiveLicenses.length})` : ''}
+      </button>
       <button class="btn btn-primary" onclick="openNewLicenseModal()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         新規登録
