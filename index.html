@@ -271,9 +271,12 @@ const db    = getFirestore(fbApp);
 
 // ===== アプリ状態 =====
 let state = {
-  licenses:   [],
-  categories: [],
-  resellers:  [],
+  licenses:      [],
+  categories:    [],
+  resellers:     [],
+  contractTypes: [],
+  paymentTypes:  [],
+  catDivisions:  [],
   curTab: 'list',
   search: '',
   showInactive: false,
@@ -299,6 +302,7 @@ const diffDays = (dateStr) => {
   return Math.ceil((new Date(dateStr) - t) / 86400000);
 };
 const alertLevel = (lic) => {
+  if (lic.notificationPeriod === 0) return 'none'; // 「なし」設定
   const d = diffDays(lic.anniversaryDate);
   if (d < 0) return 'danger';
   const nd = new Date(lic.anniversaryDate);
@@ -310,7 +314,8 @@ const alertLevel = (lic) => {
 const alertBadge = (lic) => {
   const d = diffDays(lic.anniversaryDate);
   const lv = alertLevel(lic);
-  if (lv === 'danger') return `<span class="badge badge-danger">⚠ 更新日超過</span>`;
+  if (lv === 'none')    return `<span class="badge badge-gray">通知なし</span>`;
+  if (lv === 'danger')  return `<span class="badge badge-danger">⚠ 更新日超過</span>`;
   if (lv === 'warning') return `<span class="badge badge-warn">🔔 あと${d}日</span>`;
   return `<span class="badge badge-ok">✓ 正常</span>`;
 };
@@ -393,7 +398,7 @@ document.getElementById('tabNav').addEventListener('click', e => {
 onAuthStateChanged(auth, user => {
   if (!user || !window._authOk) return;
   state.user = user;
-  let loaded = { licenses: false, categories: false, resellers: false };
+  let loaded = { licenses: false, categories: false, resellers: false, contractTypes: false, paymentTypes: false, catDivisions: false };
   const check = () => {
     if (Object.values(loaded).every(Boolean)) {
       document.getElementById('loadingScreen').classList.add('hidden');
@@ -413,6 +418,18 @@ onAuthStateChanged(auth, user => {
   onSnapshot(colRef('resellers'), snap => {
     state.resellers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     loaded.resellers = true; check(); render();
+  });
+  onSnapshot(colRef('contractTypes'), snap => {
+    state.contractTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    loaded.contractTypes = true; check(); render();
+  });
+  onSnapshot(colRef('paymentTypes'), snap => {
+    state.paymentTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    loaded.paymentTypes = true; check(); render();
+  });
+  onSnapshot(colRef('catDivisions'), snap => {
+    state.catDivisions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    loaded.catDivisions = true; check(); render();
   });
 });
 
@@ -468,7 +485,7 @@ function renderList() {
   });
 
   const totalCount = activeLicenses.reduce((s, l) => s + calcTotal(l.history || []), 0);
-  const warnings = activeLicenses.filter(l => alertLevel(l) !== 'ok');
+  const warnings = activeLicenses.filter(l => { const lv = alertLevel(l); return lv === 'danger' || lv === 'warning'; });
   const warningsSorted = [...warnings].sort((a, b) => diffDays(a.anniversaryDate) - diffDays(b.anniversaryDate));
 
   const warnPanel = warnings.length > 0 ? `
@@ -506,12 +523,13 @@ function renderList() {
       </td>
       <td><span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">${total} 本</span></td>
       <td style="color:#475569;font-size:12px;font-weight:600;">${esc(firstReseller)}</td>
-      <td style="color:#64748b;font-size:12px;">${lic.contractStartDate || '―'}</td>
       <td style="color:#64748b;font-size:12px;">${getLastRenewalDate(lic)}</td>
       <td>
         <span style="font-weight:700;font-size:12px;color:#1e293b;">${lic.anniversaryDate || '―'}</span>
         <span style="margin-left:8px;">${isActive ? alertBadge(lic) : ''}</span>
       </td>
+      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(lic.contractType||'―')}</td>
+      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(lic.paymentType||'―')}</td>
       <td style="text-align:right;">
         ${isActive ? `<button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${lic.id}')">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -539,7 +557,7 @@ function renderList() {
       ${isOpen ? `<div style="overflow-x:auto;">
         <table class="tbl">
           <thead><tr>
-            <th>製品名</th><th>総本数</th><th>リセラー</th><th>契約開始日</th><th>最終更新日</th><th>応当日（更新期限）</th><th style="text-align:right;">アクション</th>
+            <th>製品名</th><th>総本数</th><th>リセラー</th><th>契約更新日</th><th>契約終了日</th><th>契約形態</th><th>支払形態</th><th style="text-align:right;">アクション</th>
           </tr></thead>
           <tbody>${tableRows(items)}</tbody>
         </table>
@@ -745,50 +763,44 @@ function renderAnalytics() {
 }
 
 // ===== マスタ管理 =====
+function masterItemRow(item, onEdit, onDelete) {
+  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f8fafc;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b;">${esc(item.name||'')}</div>
+      ${item.code ? `<div style="font-size:10px;color:#94a3b8;font-family:'JetBrains Mono',monospace;">${esc(item.code)}</div>` : ''}
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="${onEdit}" style="background:none;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#64748b;padding:3px 8px;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;transition:all .15s;" onmouseover="this.style.background='#f0f9ff';this.style.borderColor='#93c5fd'" onmouseout="this.style.background='';this.style.borderColor='#e2e8f0'">編集</button>
+      <button onclick="${onDelete}" style="background:none;border:none;cursor:pointer;color:#e2e8f0;font-size:20px;font-weight:700;line-height:1;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">×</button>
+    </div>
+  </div>`;
+}
+
+function masterCard(title, items, openFn, editFn, deleteFn) {
+  const sorted = [...items].sort((a,b)=>naturalSort(a.name,b.name));
+  return `<div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="font-size:14px;font-weight:700;color:#1e293b;">${title}</h3>
+      <button class="btn btn-ghost btn-sm" onclick="${openFn}">+ 追加</button>
+    </div>
+    <div class="card" style="overflow:hidden;max-height:300px;overflow-y:auto;">
+      ${sorted.map(item => masterItemRow(item, `${editFn}('${item.id}','${esc(item.name||'')}','${esc(item.code||'')}')`, `${deleteFn}('${item.id}','${esc(item.name||'')}')`)).join('')}
+      ${sorted.length === 0 ? '<p style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;">登録なし</p>' : ''}
+    </div>
+  </div>`;
+}
+
 function renderMasters() {
-  const cats = [...state.categories].sort((a,b)=>naturalSort(a.name, b.name));
-  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
   return `
   <div style="margin-bottom:16px;">
     <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">マスタ管理</h2>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-    <!-- カテゴリ -->
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h3 style="font-size:15px;font-weight:700;color:#1e293b;">カテゴリマスタ</h3>
-        <button class="btn btn-ghost btn-sm" onclick="openCatModal()">+ 追加</button>
-      </div>
-      <div class="card" style="overflow:hidden;max-height:420px;overflow-y:auto;">
-        ${cats.map(c => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f8fafc;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;"></div>
-              <span style="font-size:13px;font-weight:700;color:#1e293b;">${esc(c.name||'')}</span>
-            </div>
-            <button onclick="deleteCat('${c.id}','${esc(c.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;font-size:20px;font-weight:700;line-height:1;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">×</button>
-          </div>`).join('')}
-        ${cats.length === 0 ? '<p style="padding:30px;text-align:center;color:#cbd5e1;font-size:13px;">登録なし</p>' : ''}
-      </div>
-    </div>
-    <!-- リセラー -->
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h3 style="font-size:15px;font-weight:700;color:#1e293b;">リセラーマスタ</h3>
-        <button class="btn btn-ghost btn-sm" onclick="openResModal()">+ 追加</button>
-      </div>
-      <div class="card" style="overflow:hidden;max-height:420px;overflow-y:auto;">
-        ${ress.map(r => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f8fafc;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <div>
-              <div style="font-size:13px;font-weight:700;color:#1e293b;">${esc(r.name||'')}</div>
-              ${r.code ? `<div style="font-size:10px;color:#94a3b8;font-family:'JetBrains Mono',monospace;">${esc(r.code)}</div>` : ''}
-            </div>
-            <button onclick="deleteRes('${r.id}','${esc(r.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;font-size:20px;font-weight:700;line-height:1;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">×</button>
-          </div>`).join('')}
-        ${ress.length === 0 ? '<p style="padding:30px;text-align:center;color:#cbd5e1;font-size:13px;">登録なし</p>' : ''}
-      </div>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+    ${masterCard('カテゴリマスタ（ライセンス）', state.categories, 'openCatModal()', 'editMaster', 'deleteMaster_cat')}
+    ${masterCard('リセラーマスタ', state.resellers, 'openResModal()', 'editMasterRes', 'deleteMaster_res')}
+    ${masterCard('契約形態マスタ', state.contractTypes, 'openMasterModal("contractTypes","契約形態")', 'editMasterContractType', 'deleteMaster_ct')}
+    ${masterCard('支払形態マスタ', state.paymentTypes, 'openMasterModal("paymentTypes","支払形態")', 'editMasterPaymentType', 'deleteMaster_pt')}
+    ${masterCard('カテゴリマスタ（区分）', state.catDivisions, 'openMasterModal("catDivisions","カテゴリ（区分）")', 'editMasterCatDivision', 'deleteMaster_cd')}
   </div>`;
 }
 
@@ -819,13 +831,14 @@ window.openNewLicenseModal = () => {
         <div><label class="lbl">カテゴリ *</label><select id="nl_cat">${catOptions}</select></div>
         <div><label class="lbl">製品名 *</label><input id="nl_name" placeholder="例: Microsoft 365 E3"></div>
         <div><label class="lbl">契約開始日 *</label><input type="date" id="nl_start"></div>
-        <div><label class="lbl">応当日（次回更新日） *</label><input type="date" id="nl_ann"></div>
+        <div><label class="lbl">契約終了日 *</label><input type="date" id="nl_ann"></div>
         <div style="grid-column:span 2;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-size:13px;font-weight:700;color:#1e293b;">契約更新のお知らせ通知</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">更新期限の何ヶ月前から通知するか</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">更新期限の何ヶ月前から通知するか（「なし」は通知しない）</div>
           </div>
           <select id="nl_notif" style="width:120px;">
+            <option value="0">なし</option>
             <option value="1">1ヵ月前</option>
             <option value="2">2ヵ月前</option>
             <option value="3" selected>3ヵ月前</option>
@@ -834,6 +847,8 @@ window.openNewLicenseModal = () => {
             <option value="6">6ヵ月前</option>
           </select>
         </div>
+        <div><label class="lbl">契約形態</label><select id="nl_ctype"><option value="">未選択</option></select></div>
+        <div><label class="lbl">支払形態</label><select id="nl_ptype"><option value="">未選択</option></select></div>
         <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;font-size:12px;font-weight:700;color:#3b82f6;">初回購入情報</div>
         <div><label class="lbl">リセラー</label><select id="nl_res">${resOptions}</select></div>
         <div><label class="lbl">初回本数 *</label><input type="number" id="nl_count" min="1" placeholder="例: 100"></div>
@@ -850,7 +865,18 @@ window.openNewLicenseModal = () => {
       </button>
     </div>
   </div>`);
-  setTimeout(() => document.getElementById('nl_name')?.focus(), 100);
+  // 契約形態・支払形態のoptions を動的設定
+  setTimeout(() => {
+    const ctEl = document.getElementById('nl_ctype');
+    const ptEl = document.getElementById('nl_ptype');
+    if (ctEl) state.contractTypes.sort((a,b)=>naturalSort(a.name,b.name)).forEach(t => {
+      const o = document.createElement('option'); o.value = t.name; o.textContent = t.name; ctEl.appendChild(o);
+    });
+    if (ptEl) state.paymentTypes.sort((a,b)=>naturalSort(a.name,b.name)).forEach(t => {
+      const o = document.createElement('option'); o.value = t.name; o.textContent = t.name; ptEl.appendChild(o);
+    });
+    document.getElementById('nl_name')?.focus();
+  }, 100);
 };
 
 window.saveLicense = async () => {
@@ -858,7 +884,9 @@ window.saveLicense = async () => {
   const name   = document.getElementById('nl_name')?.value?.trim();
   const start  = document.getElementById('nl_start')?.value;
   const ann    = document.getElementById('nl_ann')?.value;
-  const notif  = Number(document.getElementById('nl_notif')?.value || 3);
+  const notif  = Number(document.getElementById('nl_notif')?.value ?? 3);
+  const ctype  = document.getElementById('nl_ctype')?.value?.trim();
+  const ptype  = document.getElementById('nl_ptype')?.value?.trim();
   const res    = document.getElementById('nl_res')?.value?.trim();
   const count  = Number(document.getElementById('nl_count')?.value || 0);
   const cost   = Number(document.getElementById('nl_cost')?.value || 0);
@@ -871,6 +899,7 @@ window.saveLicense = async () => {
   try {
     await dbAdd('licenses', {
       category: cat, name, contractStartDate: start, anniversaryDate: ann, notificationPeriod: notif,
+      contractType: ctype || '', paymentType: ptype || '',
       history: [{ id: `H${Date.now()}`, date: start, type: '新規', count, reason, reseller: res, costPrice: cost, sellingPrice: sell }],
       createdAt: new Date().toISOString()
     });
@@ -952,13 +981,13 @@ window.openHistoryModal = (licId) => {
             <div style="font-size:28px;font-weight:900;color:#1d4ed8;">${total} <span style="font-size:12px;color:#93c5fd;">本</span></div>
           </div>
           <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
-            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">次回応当日</div>
+            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">契約終了日</div>
             <div style="font-size:16px;font-weight:900;color:#1e293b;">${lic.anniversaryDate||'未設定'}</div>
             <div style="margin-top:4px;">${alertBadge(lic)}</div>
           </div>
           <div style="border-left:1px solid #bfdbfe;padding-left:16px;">
             <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">通知設定</div>
-            <div style="font-size:13px;font-weight:700;color:#1e293b;">更新の ${lic.notificationPeriod||3}ヶ月前</div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">${lic.notificationPeriod === 0 ? '通知なし' : `更新の ${lic.notificationPeriod||3}ヶ月前`}</div>
           </div>
         </div>
         <div style="border-top:1px solid #bfdbfe;padding-top:12px;display:flex;justify-content:flex-end;">
@@ -981,15 +1010,23 @@ window.openHistoryModal = (licId) => {
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <div><label class="lbl">日付</label><input type="date" id="h_date" value="${today()}"></div>
           <div><label class="lbl">種別</label>
-            <select id="h_type" onchange="if(this.value==='更新')document.getElementById('h_count').value=0;">
+            <select id="h_type" onchange="
+              var isRenew = this.value==='更新';
+              document.getElementById('h_count').value = isRenew ? 0 : '';
+              document.getElementById('h_new_end_wrap').style.display = isRenew ? 'block' : 'none';
+            ">
               <option value="追加">追加</option><option value="更新">更新</option><option value="削減">削減</option>
             </select>
           </div>
           <div><label class="lbl">本数（増減分）</label><input type="number" id="h_count" placeholder="例: 10"></div>
+          <div id="h_new_end_wrap" style="display:none;grid-column:span 3;">
+            <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
+            <input type="date" id="h_new_end" style="max-width:200px;">
+          </div>
           <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="h_cost" value="${last.costPrice||''}" placeholder="例: 48000"></div>
           <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="h_sell" value="${last.sellingPrice||''}" placeholder="例: 54000"></div>
           <div style="display:flex;align-items:flex-end;gap:10px;">
-            <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="h_reason" placeholder="例: 新規メンバー増員のため"></div>
+            <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="h_reason" placeholder="例: 年次更新のため"></div>
             <button class="btn btn-primary" onclick="saveHistory('${licId}')">
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
               保存する
@@ -1009,15 +1046,19 @@ window.saveHistory = async (licId) => {
   const cost   = Number(document.getElementById('h_cost')?.value || 0);
   const sell   = Number(document.getElementById('h_sell')?.value || 0);
   const reason = document.getElementById('h_reason')?.value?.trim();
+  const newEnd = document.getElementById('h_new_end')?.value || '';
   if (!date) { toast('日付を入力してください', 'error'); return; }
+  if (type === '更新' && !newEnd) { toast('更新時は次回契約終了日を入力してください', 'error'); return; }
   // リセラーは初回登録時のものを引き継ぐ
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
   const inheritedReseller = firstRec.reseller || '';
   const actualCount = type === '削減' ? -Math.abs(count) : count;
   const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: inheritedReseller, costPrice: cost, sellingPrice: sell };
+  const updateData = { history: [...(lic.history || []), newRec] };
+  if (type === '更新' && newEnd) updateData.anniversaryDate = newEnd;
   try {
-    await dbUpdate('licenses', licId, { history: [...(lic.history || []), newRec] });
-    toast('履歴を追加しました ✓');
+    await dbUpdate('licenses', licId, updateData);
+    toast(type === '更新' ? '更新を記録し、契約終了日を更新しました ✓' : '履歴を追加しました ✓');
     closeModal();
   } catch(e) { toast('保存失敗: ' + e.message, 'error'); }
 };
@@ -1045,9 +1086,14 @@ window.openEditLicenseModal = (licId) => {
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
 
   // 通知設定のoptions
-  const notifOptions = [1,2,3,4,5,6].map(n =>
-    `<option value="${n}"${(lic.notificationPeriod||3)===n?' selected':''}>${n}ヵ月前</option>`
+  const notifOptions = [0,1,2,3,4,5,6].map(n =>
+    `<option value="${n}"${(lic.notificationPeriod===0&&n===0)||((lic.notificationPeriod||3)===n&&n!==0)?' selected':''}>${n===0?'なし':n+'ヵ月前'}</option>`
   ).join('');
+
+  const ctypes = [...state.contractTypes].sort((a,b)=>naturalSort(a.name,b.name));
+  const ptypes = [...state.paymentTypes].sort((a,b)=>naturalSort(a.name,b.name));
+  const ctypeOpts = '<option value="">未選択</option>' + ctypes.map(t=>`<option value="${esc(t.name)}"${lic.contractType===t.name?' selected':''}>${esc(t.name)}</option>`).join('');
+  const ptypeOpts = '<option value="">未選択</option>' + ptypes.map(t=>`<option value="${esc(t.name)}"${lic.paymentType===t.name?' selected':''}>${esc(t.name)}</option>`).join('');
 
   openModal(`<div class="modal modal-lg">
     <div class="modal-header">
@@ -1062,7 +1108,7 @@ window.openEditLicenseModal = (licId) => {
         <div><label class="lbl">カテゴリ *</label><select id="el_cat">${catOptions}</select></div>
         <div><label class="lbl">製品名 *</label><input id="el_name" value="${esc(lic.name||'')}" placeholder="例: Microsoft 365 E3"></div>
         <div><label class="lbl">契約開始日 *</label><input type="date" id="el_start" value="${lic.contractStartDate||''}"></div>
-        <div><label class="lbl">応当日（次回更新日） *</label><input type="date" id="el_ann" value="${lic.anniversaryDate||''}"></div>
+        <div><label class="lbl">契約終了日 *</label><input type="date" id="el_ann" value="${lic.anniversaryDate||''}"></div>
         <div style="grid-column:span 2;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-size:13px;font-weight:700;color:#1e293b;">契約更新のお知らせ通知</div>
@@ -1071,6 +1117,8 @@ window.openEditLicenseModal = (licId) => {
           <select id="el_notif" style="width:120px;">${notifOptions}</select>
         </div>
 
+        <div><label class="lbl">契約形態</label><select id="el_ctype">${ctypeOpts}</select></div>
+        <div><label class="lbl">支払形態</label><select id="el_ptype">${ptypeOpts}</select></div>
         <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;">
           <div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:12px;">初回購入情報</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
@@ -1102,7 +1150,9 @@ window.confirmEditLicense = (licId) => {
   const newName   = document.getElementById('el_name')?.value?.trim();
   const newStart  = document.getElementById('el_start')?.value;
   const newAnn    = document.getElementById('el_ann')?.value;
-  const newNotif  = Number(document.getElementById('el_notif')?.value || 3);
+  const newNotif  = Number(document.getElementById('el_notif')?.value ?? 3);
+  const newCtype  = document.getElementById('el_ctype')?.value?.trim();
+  const newPtype  = document.getElementById('el_ptype')?.value?.trim();
   const newRes    = document.getElementById('el_res')?.value?.trim();
   const newCount  = Number(document.getElementById('el_count')?.value || 0);
   const newCost   = Number(document.getElementById('el_cost')?.value || 0);
@@ -1123,6 +1173,8 @@ window.confirmEditLicense = (licId) => {
   if (newCost   !== (firstRec.costPrice||0))       changes.push(`原価: ¥${(firstRec.costPrice||0).toLocaleString()} → ¥${newCost.toLocaleString()}`);
   if (newSell   !== (firstRec.sellingPrice||0))    changes.push(`売価: ¥${(firstRec.sellingPrice||0).toLocaleString()} → ¥${newSell.toLocaleString()}`);
   if (newReason !== (firstRec.reason||''))         changes.push('初回理由: 変更あり');
+  if (newCtype  !== (lic.contractType||''))        changes.push(`契約形態: ${lic.contractType||'―'} → ${newCtype||'―'}`);
+  if (newPtype  !== (lic.paymentType||''))         changes.push(`支払形態: ${lic.paymentType||'―'} → ${newPtype||'―'}`);
 
   const changeText = changes.length > 0 ? changes.join('\n') : '変更はありません';
 
@@ -1139,6 +1191,7 @@ window.confirmEditLicense = (licId) => {
         await dbUpdate('licenses', licId, {
           category: newCat, name: newName, contractStartDate: newStart,
           anniversaryDate: newAnn, notificationPeriod: newNotif,
+          contractType: newCtype || '', paymentType: newPtype || '',
           history: updatedHistory
         });
         toast('基本情報を更新しました ✓');
@@ -1151,57 +1204,67 @@ window.confirmEditLicense = (licId) => {
   );
 };
 
-// ===== カテゴリ CRUD =====
-window.openCatModal = () => {
+// ===== マスタ汎用モーダル =====
+function openMasterAddEditModal(title, colName, id, currentName, currentCode, hasCode) {
+  const isEdit = !!id;
   openModal(`<div class="modal" style="max-width:400px;">
-    <div class="modal-header"><div style="font-size:15px;font-weight:900;color:#1e293b;">カテゴリ追加</div><button class="close-btn" onclick="closeModal()">×</button></div>
+    <div class="modal-header"><div style="font-size:15px;font-weight:900;color:#1e293b;">${title}</div><button class="close-btn" onclick="closeModal()">×</button></div>
     <div class="modal-body"><div style="display:flex;flex-direction:column;gap:12px;">
-      <div><label class="lbl">カテゴリ名 *</label><input id="cat_name" placeholder="例: Google"></div>
-      <button class="btn btn-primary" onclick="saveCat()" style="width:100%;justify-content:center;">登録する</button>
+      <div><label class="lbl">名称 *</label><input id="m_name" value="${esc(currentName||'')}" placeholder="名称を入力"></div>
+      ${hasCode ? `<div><label class="lbl">コード（任意）</label><input id="m_code" value="${esc(currentCode||'')}" placeholder="例: ABC001" class="mono" style="text-transform:uppercase;"></div>` : ''}
+      <button class="btn btn-primary" onclick="saveMasterItem('${colName}','${id||''}',${hasCode})" style="width:100%;justify-content:center;">${isEdit?'更新する':'登録する'}</button>
     </div></div>
   </div>`);
-  setTimeout(() => document.getElementById('cat_name')?.focus(), 100);
+  setTimeout(() => document.getElementById('m_name')?.focus(), 100);
+}
+
+window.saveMasterItem = async (colName, id, hasCode) => {
+  const name = document.getElementById('m_name')?.value?.trim();
+  const code = hasCode ? (document.getElementById('m_code')?.value?.trim().toUpperCase()||'') : '';
+  if (!name) { toast('名称を入力してください', 'error'); return; }
+  const arr = state[colName] || [];
+  if (arr.some(x => x.name === name && x.id !== id)) { toast('同じ名前がすでに存在します', 'error'); return; }
+  try {
+    if (id) {
+      await dbUpdate(colName, id, { name, ...(hasCode ? { code } : {}) });
+      toast('更新しました ✓');
+    } else {
+      await dbAdd(colName, { name, ...(hasCode ? { code } : {}) });
+      toast('追加しました ✓');
+    }
+    closeModal();
+  } catch(e) { toast('保存失敗: ' + e.message, 'error'); }
 };
-window.saveCat = async () => {
-  const name = document.getElementById('cat_name')?.value?.trim();
-  if (!name) { toast('カテゴリ名を入力してください', 'error'); return; }
-  if (state.categories.some(c => c.name === name)) { toast('同じ名前がすでに存在します', 'error'); return; }
-  try { await dbAdd('categories', { name }); toast('カテゴリを追加しました ✓'); closeModal(); }
-  catch(e) { toast('追加失敗: ' + e.message, 'error'); }
-};
-window.deleteCat = (id, name) => {
-  showConfirm(`「${name}」を削除しますか？\n※登録済みライセンスの表示は変わりません`, async () => {
-    try { await dbDelete('categories', id); toast('カテゴリを削除しました'); }
+
+window.deleteMasterItem = (colName, id, name, note) => {
+  showConfirm(`「${name}」を削除しますか？${note ? '\n'+note : ''}`, async () => {
+    try { await dbDelete(colName, id); toast('削除しました'); }
     catch(e) { toast('削除失敗: ' + e.message, 'error'); }
   });
 };
 
-// ===== リセラー CRUD =====
-window.openResModal = () => {
-  openModal(`<div class="modal" style="max-width:400px;">
-    <div class="modal-header"><div style="font-size:15px;font-weight:900;color:#1e293b;">リセラー追加</div><button class="close-btn" onclick="closeModal()">×</button></div>
-    <div class="modal-body"><div style="display:flex;flex-direction:column;gap:12px;">
-      <div><label class="lbl">リセラー名 *</label><input id="res_name" placeholder="例: SB C&S株式会社"></div>
-      <div><label class="lbl">コード（任意）</label><input id="res_code" placeholder="例: SBC001" class="mono" style="text-transform:uppercase;"></div>
-      <button class="btn btn-primary" onclick="saveRes()" style="width:100%;justify-content:center;">登録する</button>
-    </div></div>
-  </div>`);
-  setTimeout(() => document.getElementById('res_name')?.focus(), 100);
-};
-window.saveRes = async () => {
-  const name = document.getElementById('res_name')?.value?.trim();
-  const code = document.getElementById('res_code')?.value?.trim().toUpperCase();
-  if (!name) { toast('リセラー名を入力してください', 'error'); return; }
-  if (state.resellers.some(r => r.name === name)) { toast('同じ名前がすでに存在します', 'error'); return; }
-  try { await dbAdd('resellers', { name, code }); toast('リセラーを追加しました ✓'); closeModal(); }
-  catch(e) { toast('追加失敗: ' + e.message, 'error'); }
-};
-window.deleteRes = (id, name) => {
-  showConfirm(`「${name}」を削除しますか？\n※登録済み履歴の表示は変わりません`, async () => {
-    try { await dbDelete('resellers', id); toast('リセラーを削除しました'); }
-    catch(e) { toast('削除失敗: ' + e.message, 'error'); }
-  });
-};
+// カテゴリ（ライセンス）
+window.openCatModal = () => openMasterAddEditModal('カテゴリ追加（ライセンス）', 'categories', '', '', '', false);
+window.editMaster = (id, name) => openMasterAddEditModal('カテゴリ編集（ライセンス）', 'categories', id, name, '', false);
+window.deleteMaster_cat = (id, name) => deleteMasterItem('categories', id, name, '※登録済みライセンスの表示は変わりません');
+
+// リセラー
+window.openResModal = () => openMasterAddEditModal('リセラー追加', 'resellers', '', '', '', true);
+window.editMasterRes = (id, name, code) => openMasterAddEditModal('リセラー編集', 'resellers', id, name, code, true);
+window.deleteMaster_res = (id, name) => deleteMasterItem('resellers', id, name, '※登録済み履歴の表示は変わりません');
+
+// 汎用（契約形態・支払形態・カテゴリ区分）
+window.openMasterModal = (colName, label) => openMasterAddEditModal(`${label}追加`, colName, '', '', '', false);
+// editMaster_gen / deleteMaster_gen はテンプレートリテラル内で呼べないため window 経由で定義
+window.editMaster_gen = (colName) => {}; // unused direct call - see masterCard
+window.deleteMaster_gen = (colName) => {}; // unused direct call - see masterCard
+// 個別定義
+window.editMasterContractType  = (id, name) => openMasterAddEditModal('契約形態編集', 'contractTypes', id, name, '', false);
+window.editMasterPaymentType   = (id, name) => openMasterAddEditModal('支払形態編集', 'paymentTypes', id, name, '', false);
+window.editMasterCatDivision   = (id, name) => openMasterAddEditModal('カテゴリ編集（区分）', 'catDivisions', id, name, '', false);
+window.deleteMaster_ct  = (id, name) => deleteMasterItem('contractTypes', id, name, '');
+window.deleteMaster_pt  = (id, name) => deleteMasterItem('paymentTypes', id, name, '');
+window.deleteMaster_cd  = (id, name) => deleteMasterItem('catDivisions', id, name, '');
 
 // Escape キーでモーダル閉じる
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
