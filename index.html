@@ -515,28 +515,28 @@ function renderList() {
     const firstRecord = [...(lic.history || [])].sort((a, b) => (a.date||'').localeCompare(b.date||'')).find(h => h.type === '新規') || (lic.history||[])[0] || {};
     const firstReseller = firstRecord.reseller || '―';
     return `<tr style="${isActive ? '' : 'opacity:.5;background:#f8fafc;'}">
-      <td>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-weight:700;color:${isActive ? '#1e293b' : '#94a3b8'};">${esc(lic.name || '―')}</span>
-          ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:4px;border:1px solid #e2e8f0;">無効</span>' : ''}
+      <td style="max-width:180px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
+          <span style="font-weight:700;font-size:12px;color:${isActive ? '#1e293b' : '#94a3b8'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(lic.name||'')}">${esc(lic.name || '―')}</span>
+          ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;flex-shrink:0;">無効</span>' : ''}
         </div>
       </td>
-      <td><span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;">${total} 本</span></td>
-      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(firstReseller)}</td>
-      <td style="color:#64748b;font-size:12px;">${getLastRenewalDate(lic)}</td>
-      <td>
-        <span style="font-weight:700;font-size:12px;color:#1e293b;">${lic.anniversaryDate || '―'}</span>
-        <span style="margin-left:8px;">${isActive ? alertBadge(lic) : ''}</span>
+      <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+      <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
+      <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
+      <td style="white-space:nowrap;">
+        <span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate || '―'}</span>
+        ${isActive ? `<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>` : ''}
       </td>
-      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(lic.contractType||'―')}</td>
-      <td style="color:#475569;font-size:12px;font-weight:600;">${esc(lic.paymentType||'―')}</td>
+      <td>${lic.contractType ? `<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
+      <td>${lic.paymentType ? `<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td style="text-align:right;">
         ${isActive ? `<button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${lic.id}')">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           履歴・追加
         </button>` : ''}
         <button onclick="toggleLicenseActive('${lic.id}',${isActive})" title="${isActive ? '無効にする' : '有効にする'}" style="background:none;border:1.5px solid ${isActive ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive ? '#94a3b8' : '#059669'};margin-left:4px;padding:4px 8px;vertical-align:middle;transition:all .15s;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;" onmouseover="this.style.background='${isActive ? '#fef2f2' : '#f0fdf4'}';this.style.borderColor='${isActive ? '#fca5a5' : '#86efac'}';this.style.color='${isActive ? '#dc2626' : '#15803d'}'" onmouseout="this.style.background='';this.style.borderColor='${isActive ? '#e2e8f0' : '#bbf7d0'}';this.style.color='${isActive ? '#94a3b8' : '#059669'}'">
-          ${isActive ? '無効にする' : '有効にする'}
+          ${isActive ? '無効' : '有効'}
         </button>
         <button onclick="deleteLicense('${lic.id}','${esc(lic.name || '')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;vertical-align:middle;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg>
@@ -557,7 +557,7 @@ function renderList() {
       ${isOpen ? `<div style="overflow-x:auto;">
         <table class="tbl">
           <thead><tr>
-            <th>製品名</th><th>総本数</th><th>リセラー</th><th>契約更新日</th><th>契約終了日</th><th>契約形態</th><th>支払形態</th><th style="text-align:right;">アクション</th>
+            <th style="font-size:10px;">製品名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
           </tr></thead>
           <tbody>${tableRows(items)}</tbody>
         </table>
@@ -796,11 +796,15 @@ function renderMasters() {
     <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">マスタ管理</h2>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
-    ${masterCard('カテゴリマスタ（ライセンス）', state.categories, 'openCatModal()', 'editMaster', 'deleteMaster_cat')}
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      ${masterCard('カテゴリマスタ（ライセンス）', state.categories, 'openCatModal()', 'editMaster', 'deleteMaster_cat')}
+      ${masterCard('カテゴリマスタ（区分）', state.catDivisions, 'openCatDivModal()', 'editMasterCatDivision', 'deleteMaster_cd')}
+    </div>
     ${masterCard('リセラーマスタ', state.resellers, 'openResModal()', 'editMasterRes', 'deleteMaster_res')}
-    ${masterCard('契約形態マスタ', state.contractTypes, 'openMasterModal("contractTypes","契約形態")', 'editMasterContractType', 'deleteMaster_ct')}
-    ${masterCard('支払形態マスタ', state.paymentTypes, 'openMasterModal("paymentTypes","支払形態")', 'editMasterPaymentType', 'deleteMaster_pt')}
-    ${masterCard('カテゴリマスタ（区分）', state.catDivisions, 'openMasterModal("catDivisions","カテゴリ（区分）")', 'editMasterCatDivision', 'deleteMaster_cd')}
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      ${masterCard('契約形態マスタ', state.contractTypes, 'openContractTypeModal()', 'editMasterContractType', 'deleteMaster_ct')}
+      ${masterCard('支払形態マスタ', state.paymentTypes, 'openPaymentTypeModal()', 'editMasterPaymentType', 'deleteMaster_pt')}
+    </div>
   </div>`;
 }
 
@@ -1255,6 +1259,9 @@ window.deleteMaster_res = (id, name) => deleteMasterItem('resellers', id, name, 
 
 // 汎用（契約形態・支払形態・カテゴリ区分）
 window.openMasterModal = (colName, label) => openMasterAddEditModal(`${label}追加`, colName, '', '', '', false);
+window.openCatDivModal       = () => openMasterAddEditModal('カテゴリ追加（区分）', 'catDivisions', '', '', '', false);
+window.openContractTypeModal = () => openMasterAddEditModal('契約形態追加', 'contractTypes', '', '', '', false);
+window.openPaymentTypeModal  = () => openMasterAddEditModal('支払形態追加', 'paymentTypes', '', '', '', false);
 // editMaster_gen / deleteMaster_gen はテンプレートリテラル内で呼べないため window 経由で定義
 window.editMaster_gen = (colName) => {}; // unused direct call - see masterCard
 window.deleteMaster_gen = (colName) => {}; // unused direct call - see masterCard
