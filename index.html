@@ -153,6 +153,7 @@ select option{font-weight:600;}
 
   <nav id="tabNav">
     <button class="tab active" data-tab="list">ライセンス一覧</button>
+    <button class="tab" data-tab="service">保守・サービス一覧</button>
     <button class="tab" data-tab="analytics">分析ダッシュボード</button>
     <button class="tab" data-tab="masters">マスタ管理</button>
   </nav>
@@ -272,6 +273,7 @@ const db    = getFirestore(fbApp);
 // ===== アプリ状態 =====
 let state = {
   licenses:      [],
+  services:      [],
   categories:    [],
   resellers:     [],
   contractTypes: [],
@@ -279,8 +281,11 @@ let state = {
   catDivisions:  [],
   curTab: 'list',
   search: '',
+  searchService: '',
   showInactive: false,
+  showInactiveService: false,
   expandedGroups: {},
+  expandedGroupsService: {},
   user: null
 };
 
@@ -398,7 +403,7 @@ document.getElementById('tabNav').addEventListener('click', e => {
 onAuthStateChanged(auth, user => {
   if (!user || !window._authOk) return;
   state.user = user;
-  let loaded = { licenses: false, categories: false, resellers: false, contractTypes: false, paymentTypes: false, catDivisions: false };
+  let loaded = { licenses: false, services: false, categories: false, resellers: false, contractTypes: false, paymentTypes: false, catDivisions: false };
   const check = () => {
     if (Object.values(loaded).every(Boolean)) {
       document.getElementById('loadingScreen').classList.add('hidden');
@@ -411,6 +416,10 @@ onAuthStateChanged(auth, user => {
     loaded.licenses = true; check(); render();
     setSyncStatus('● 同期済み');
   }, () => setSyncStatus('● エラー', '#dc2626', '#fef2f2'));
+  onSnapshot(colRef('services'), snap => {
+    state.services = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    loaded.services = true; check(); render();
+  });
   onSnapshot(colRef('categories'), snap => {
     state.categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     loaded.categories = true; check(); render();
@@ -447,15 +456,25 @@ else { window.addEventListener('load', waitAndConnect); }
 function render() {
   if (!state.user) return;
   const mc = document.getElementById('mc'); if (!mc) return;
-  if (state.curTab === 'list')      mc.innerHTML = renderList();
+  if (state.curTab === 'list')           mc.innerHTML = renderList();
+  else if (state.curTab === 'service')   mc.innerHTML = renderServiceList();
   else if (state.curTab === 'analytics') mc.innerHTML = renderAnalytics();
   else if (state.curTab === 'masters')   mc.innerHTML = renderMasters();
 }
 window.setSearch = (v) => { state.search = v; render(); };
+window.setSearchService = (v) => { state.searchService = v; render(); };
 window.toggleInactive = () => { state.showInactive = !state.showInactive; render(); };
+window.toggleInactiveService = () => { state.showInactiveService = !state.showInactiveService; render(); };
+window.toggleGroupService = (cat) => { state.expandedGroupsService[cat] = !state.expandedGroupsService[cat]; render(); };
 window.toggleLicenseActive = async (id, currentActive) => {
   try {
     await dbUpdate('licenses', id, { active: !currentActive });
+    toast(currentActive ? '無効にしました' : '有効にしました ✓');
+  } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
+};
+window.toggleServiceActive = async (id, currentActive) => {
+  try {
+    await dbUpdate('services', id, { active: !currentActive });
     toast(currentActive ? '無効にしました' : '有効にしました ✓');
   } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
 };
@@ -626,6 +645,171 @@ function renderList() {
       <div style="padding:60px;text-align:center;">
         <svg width="40" height="40" fill="none" stroke="#e2e8f0" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 12px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <p style="color:#94a3b8;font-weight:700;font-size:13px;">該当するライセンスが見つかりません</p>
+      </div>` : groupBlocks}
+  </div>`;
+}
+
+
+// ===== 保守・サービス一覧 =====
+function renderServiceList() {
+  const col = 'services';
+  const activeItems   = state.services.filter(l => l.active !== false);
+  const inactiveItems = state.services.filter(l => l.active === false);
+  const visibleBase   = state.showInactiveService ? state.services : activeItems;
+
+  const filtered = visibleBase.filter(l =>
+    (l.name || '').toLowerCase().includes(state.searchService.toLowerCase()) ||
+    (l.category || '').toLowerCase().includes(state.searchService.toLowerCase())
+  );
+
+  const grouped = filtered.reduce((acc, lic) => {
+    const cat = lic.category || 'その他';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(lic);
+    return acc;
+  }, {});
+  Object.keys(grouped).forEach(cat => { grouped[cat].sort((a, b) => naturalSort(a.name, b.name)); });
+
+  const totalCount = activeItems.reduce((s, l) => s + calcTotal(l.history || []), 0);
+  const warnings = activeItems.filter(l => { const lv = alertLevel(l); return lv === 'danger' || lv === 'warning'; });
+  const warningsSorted = [...warnings].sort((a, b) => diffDays(a.anniversaryDate) - diffDays(b.anniversaryDate));
+
+  const warnPanel = warnings.length > 0 ? `
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+      <div style="font-size:12px;font-weight:700;color:#ea580c;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        更新お知らせ対象（残り日数順）
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${warningsSorted.map((l, i) => {
+          const d = diffDays(l.anniversaryDate);
+          return `<div onclick="openServiceHistoryModal('${l.id}')" style="background:#fff;border:1px solid ${d < 0 ? '#fecaca' : '#fed7aa'};border-radius:8px;padding:8px 12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''">
+            <span style="width:20px;height:20px;border-radius:50%;background:${d < 0 ? '#dc2626' : '#f97316'};color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i + 1}</span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#1e293b;">${l.name}</div>
+              <div style="font-size:10px;font-weight:700;color:${d < 0 ? '#dc2626' : '#ea580c'};">${d < 0 ? `${Math.abs(d)}日超過` : `あと${d}日`}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  const tableRows = (items) => items.map(lic => {
+    const total = calcTotal(lic.history || []);
+    const isActive = lic.active !== false;
+    const firstRecord = [...(lic.history || [])].sort((a, b) => (a.date||'').localeCompare(b.date||'')).find(h => h.type === '新規') || (lic.history||[])[0] || {};
+    const firstReseller = firstRecord.reseller || '―';
+    return `<tr style="${isActive ? '' : 'opacity:.5;background:#f8fafc;'}">
+      <td style="max-width:180px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
+          <span style="font-weight:700;font-size:12px;color:${isActive ? '#1e293b' : '#94a3b8'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(lic.name||'')}">${esc(lic.name || '―')}</span>
+          ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;flex-shrink:0;">無効</span>' : ''}
+        </div>
+      </td>
+      <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+      <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
+      <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
+      <td style="white-space:nowrap;">
+        <span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate || '―'}</span>
+        ${isActive ? `<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>` : ''}
+      </td>
+      <td>${lic.contractType ? `<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
+      <td>${lic.paymentType ? `<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
+      <td style="text-align:right;">
+        ${isActive ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openServiceHistoryModal('${lic.id}')">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          履歴
+        </button>` : ''}
+        <button onclick="toggleServiceActive('${lic.id}',${isActive})" title="${isActive ? '無効にする' : '有効にする'}" style="background:none;border:1.5px solid ${isActive ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive ? '#94a3b8' : '#059669'};margin-left:4px;padding:4px 8px;vertical-align:middle;transition:all .15s;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;" onmouseover="this.style.background='${isActive ? '#fef2f2' : '#f0fdf4'}';this.style.borderColor='${isActive ? '#fca5a5' : '#86efac'}';this.style.color='${isActive ? '#dc2626' : '#15803d'}'" onmouseout="this.style.background='';this.style.borderColor='${isActive ? '#e2e8f0' : '#bbf7d0'}';this.style.color='${isActive ? '#94a3b8' : '#059669'}'">
+          ${isActive ? '無効' : '有効'}
+        </button>
+        <button onclick="deleteService('${lic.id}','${esc(lic.name || '')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;vertical-align:middle;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const groupBlocks = Object.entries(grouped).sort(([a],[b]) => naturalSort(a, b)).map(([cat, items]) => {
+    const isOpen = state.expandedGroupsService[cat] !== false;
+    return `<div style="border-bottom:1px solid #f1f5f9;">
+      <div class="group-hdr" onclick="toggleGroupService('${esc(cat)}')">
+        <svg width="16" height="16" fill="none" stroke="#94a3b8" stroke-width="2.5" viewBox="0 0 24 24">${isOpen ? '<polyline points="6 9 12 15 18 9"/>' : '<polyline points="9 18 15 12 9 6"/>'}</svg>
+        <svg width="15" height="15" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        <span style="font-size:14px;font-weight:700;color:#1e293b;">${esc(cat)}</span>
+        <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 件</span>
+      </div>
+      ${isOpen ? `<div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr>
+            <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
+          </tr></thead>
+          <tbody>${tableRows(items)}</tbody>
+        </table>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">保守・サービス一覧</h2>
+      <p style="font-size:12px;color:#94a3b8;">有効 ${activeItems.length} 件 ／ 総本数 ${totalCount} 本${inactiveItems.length > 0 ? ` ／ <span style="color:#94a3b8;">無効 ${inactiveItems.length} 件</span>` : ''}</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div style="position:relative;">
+        <svg width="15" height="15" fill="none" stroke="#94a3b8" stroke-width="2" viewBox="0 0 24 24" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="名称・カテゴリ検索..." value="${esc(state.searchService)}" oninput="setSearchService(this.value)" style="padding-left:34px;width:220px;">
+      </div>
+      <button onclick="toggleInactiveService()" style="padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${state.showInactiveService ? '#6366f1' : '#e2e8f0'};background:${state.showInactiveService ? '#eef2ff' : '#fff'};color:${state.showInactiveService ? '#6366f1' : '#94a3b8'};font-family:'Noto Sans JP',sans-serif;display:flex;align-items:center;gap:6px;transition:all .15s;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+        ${state.showInactiveService ? '無効を非表示' : '無効も表示'}${inactiveItems.length > 0 ? ` (${inactiveItems.length})` : ''}
+      </button>
+      <button class="btn btn-primary" style="background:#0891b2;" onclick="openNewServiceModal()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        新規登録
+      </button>
+    </div>
+  </div>
+
+  <!-- サマリーカード -->
+  <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+    <div class="stat-card" style="flex:1;min-width:160px;">
+      <div class="stat-icon" style="background:#ecfeff;">
+        <svg width="20" height="20" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div>
+        <div class="stat-lbl">管理件数</div>
+        <div class="stat-val" style="color:#0891b2;">${activeItems.length}<span style="font-size:12px;font-weight:700;color:#67e8f9;margin-left:4px;">件</span></div>
+      </div>
+    </div>
+    <div class="stat-card" style="flex:1;min-width:160px;">
+      <div class="stat-icon" style="background:#ecfeff;">
+        <svg width="20" height="20" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <div>
+        <div class="stat-lbl">総本数</div>
+        <div class="stat-val" style="color:#0891b2;">${totalCount}<span style="font-size:12px;font-weight:700;color:#67e8f9;margin-left:4px;">本</span></div>
+      </div>
+    </div>
+    <div class="stat-card" style="flex:1;min-width:160px;${warnings.length > 0 ? 'background:#fff7ed;border-color:#fed7aa;' : ''}">
+      <div class="stat-icon" style="background:${warnings.length > 0 ? '#ffedd5' : '#f1f5f9'};">
+        <svg width="20" height="20" fill="none" stroke="${warnings.length > 0 ? '#ea580c' : '#94a3b8'}" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div>
+        <div class="stat-lbl" style="${warnings.length > 0 ? 'color:#ea580c;' : ''}">更新お知らせ対象</div>
+        <div class="stat-val" style="color:${warnings.length > 0 ? '#ea580c' : '#94a3b8'};">${warnings.length}<span style="font-size:12px;font-weight:700;color:${warnings.length > 0 ? '#fdba74' : '#cbd5e1'};margin-left:4px;">件</span></div>
+      </div>
+    </div>
+  </div>
+
+  ${warnPanel}
+
+  <div class="card" style="overflow:hidden;">
+    ${Object.keys(grouped).length === 0 ? `
+      <div style="padding:60px;text-align:center;">
+        <svg width="40" height="40" fill="none" stroke="#e2e8f0" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 12px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <p style="color:#94a3b8;font-weight:700;font-size:13px;">該当する保守・サービスが見つかりません</p>
       </div>` : groupBlocks}
   </div>`;
 }
@@ -815,6 +999,11 @@ function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt
 window.deleteLicense = (id, name) => {
   showConfirm(`「${name}」を削除してよろしいですか？\n（関連する全履歴も削除されます）`, async () => {
     try { await dbDelete('licenses', id); toast('ライセンスを削除しました'); } catch(e) { toast('削除失敗: ' + e.message, 'error'); }
+  });
+};
+window.deleteService = (id, name) => {
+  showConfirm(`「${name}」を削除してよろしいですか？\n（関連する全履歴も削除されます）`, async () => {
+    try { await dbDelete('services', id); toast('削除しました'); } catch(e) { toast('削除失敗: ' + e.message, 'error'); }
   });
 };
 
@@ -1204,6 +1393,345 @@ window.confirmEditLicense = (licId) => {
     },
     '変更する',
     '#3b82f6',
+    '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'
+  );
+};
+
+
+// ===== 保守・サービス 新規登録モーダル =====
+window.openNewServiceModal = () => {
+  // カテゴリは catDivisions を使用
+  const cats = [...state.catDivisions].sort((a,b)=>naturalSort(a.name, b.name));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name, b.name));
+  const catOptions = cats.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+  const resOptions = ress.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header">
+      <div style="font-size:16px;font-weight:900;color:#1e293b;">保守・サービスの新規登録</div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div><label class="lbl">カテゴリ（区分） *</label><select id="ns_cat">${catOptions || '<option value="">（マスタ未登録）</option>'}</select></div>
+        <div><label class="lbl">名称 *</label><input id="ns_name" placeholder="例: サーバー保守契約"></div>
+        <div><label class="lbl">契約開始日 *</label><input type="date" id="ns_start"></div>
+        <div><label class="lbl">契約終了日 *</label><input type="date" id="ns_ann"></div>
+        <div style="grid-column:span 2;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">契約更新のお知らせ通知</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">更新期限の何ヶ月前から通知するか（「なし」は通知しない）</div>
+          </div>
+          <select id="ns_notif" style="width:120px;">
+            <option value="0">なし</option>
+            <option value="1">1ヵ月前</option>
+            <option value="2">2ヵ月前</option>
+            <option value="3" selected>3ヵ月前</option>
+            <option value="4">4ヵ月前</option>
+            <option value="5">5ヵ月前</option>
+            <option value="6">6ヵ月前</option>
+          </select>
+        </div>
+        <div><label class="lbl">契約形態</label><select id="ns_ctype"><option value="">未選択</option></select></div>
+        <div><label class="lbl">支払形態</label><select id="ns_ptype"><option value="">未選択</option></select></div>
+        <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;font-size:12px;font-weight:700;color:#0891b2;">初回購入情報</div>
+        <div><label class="lbl">リセラー</label><select id="ns_res">${resOptions || '<option value="">（マスタ未登録）</option>'}</select></div>
+        <div><label class="lbl">初回本数 *</label><input type="number" id="ns_count" min="1" placeholder="例: 1"></div>
+        <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="ns_cost" min="0" placeholder="例: 120000"></div>
+        <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="ns_sell" min="0" placeholder="例: 150000"></div>
+        <div style="grid-column:span 2;"><label class="lbl">理由（任意）</label><input id="ns_reason" placeholder="例: サーバー保守契約締結のため"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" style="background:#0891b2;" onclick="saveService()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        登録する
+      </button>
+    </div>
+  </div>`);
+  setTimeout(() => {
+    const ctEl = document.getElementById('ns_ctype');
+    const ptEl = document.getElementById('ns_ptype');
+    if (ctEl) state.contractTypes.sort((a,b)=>naturalSort(a.name,b.name)).forEach(t => {
+      const o = document.createElement('option'); o.value = t.name; o.textContent = t.name; ctEl.appendChild(o);
+    });
+    if (ptEl) state.paymentTypes.sort((a,b)=>naturalSort(a.name,b.name)).forEach(t => {
+      const o = document.createElement('option'); o.value = t.name; o.textContent = t.name; ptEl.appendChild(o);
+    });
+    document.getElementById('ns_name')?.focus();
+  }, 100);
+};
+
+window.saveService = async () => {
+  const cat   = document.getElementById('ns_cat')?.value?.trim();
+  const name  = document.getElementById('ns_name')?.value?.trim();
+  const start = document.getElementById('ns_start')?.value;
+  const ann   = document.getElementById('ns_ann')?.value;
+  const notif = Number(document.getElementById('ns_notif')?.value ?? 3);
+  const ctype = document.getElementById('ns_ctype')?.value?.trim();
+  const ptype = document.getElementById('ns_ptype')?.value?.trim();
+  const res   = document.getElementById('ns_res')?.value?.trim();
+  const count = Number(document.getElementById('ns_count')?.value || 0);
+  const cost  = Number(document.getElementById('ns_cost')?.value || 0);
+  const sell  = Number(document.getElementById('ns_sell')?.value || 0);
+  const reason= document.getElementById('ns_reason')?.value?.trim();
+  if (!name || !start || !ann || count <= 0) { toast('必須項目を入力してください', 'error'); return; }
+  try {
+    await dbAdd('services', {
+      category: cat, name, contractStartDate: start, anniversaryDate: ann, notificationPeriod: notif,
+      contractType: ctype || '', paymentType: ptype || '',
+      history: [{ id: `H${Date.now()}`, date: start, type: '新規', count, reason, reseller: res, costPrice: cost, sellingPrice: sell }],
+      createdAt: new Date().toISOString()
+    });
+    toast('登録しました ✓');
+    closeModal();
+  } catch(e) { toast('登録失敗: ' + e.message, 'error'); }
+};
+
+// ===== 保守・サービス 履歴モーダル =====
+window.openServiceHistoryModal = (svcId) => {
+  const lic = state.services.find(l => l.id === svcId);
+  if (!lic) return;
+  const total = calcTotal(lic.history || []);
+  const last = (lic.history || []).at(-1) || {};
+
+  const typeBg = { '新規':'#dbeafe', '追加':'#dcfce7', '削減':'#fee2e2', '更新':'#f3e8ff' };
+  const typeColor = { '新規':'#1d4ed8', '追加':'#15803d', '削減':'#b91c1c', '更新':'#6d28d9' };
+  const typeDot = { '新規':'#3b82f6', '追加':'#22c55e', '削減':'#ef4444', '更新':'#a855f7' };
+
+  const sortedHist = [...(lic.history || [])].sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  const histHTML = sortedHist.map((rec, idx) => {
+    const prev = sortedHist[idx + 1];
+    const toMonthly = (annual) => Math.round((annual || 0) / 365 * 30);
+    const recCostM = toMonthly(rec.costPrice), recSellM = toMonthly(rec.sellingPrice);
+    const costDiffM = prev ? recCostM - toMonthly(prev.costPrice) : 0;
+    const sellDiffM = prev ? recSellM - toMonthly(prev.sellingPrice) : 0;
+    const diffTag = (diff) => diff > 0
+      ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:3px;font-weight:700;">▲${fmt(diff)}/月</span>`
+      : `<span style="font-size:10px;background:#f0fdf4;color:#059669;padding:1px 5px;border-radius:3px;font-weight:700;">▼${fmt(Math.abs(diff))}/月</span>`;
+    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
+    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
+    return `
+    <div style="position:relative;padding-left:20px;margin-bottom:14px;">
+      <div style="position:absolute;left:-5px;top:5px;width:12px;height:12px;border-radius:50%;background:${typeDot[rec.type]||'#94a3b8'};border:3px solid #fff;box-shadow:0 0 0 1px #e2e8f0;"></div>
+      <div style="background:#f8fafc;border-radius:10px;padding:12px 14px;border:1px solid #e2e8f0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-weight:900;font-size:13px;">${rec.date}</span>
+            <span style="background:${typeBg[rec.type]||'#f1f5f9'};color:${typeColor[rec.type]||'#475569'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">${rec.type}</span>
+            <span style="font-size:11px;color:#94a3b8;background:#fff;border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;">${esc(rec.reseller||'')}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;font-weight:900;color:#1e293b;">${rec.count > 0 ? '+' : ''}${rec.count}<span style="font-size:11px;color:#94a3b8;margin-left:2px;">本</span></span>
+            <button onclick="deleteServiceHistory('${svcId}','${rec.id}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;font-size:18px;line-height:1;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">×</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          ${rec.reason ? `<div style="flex:1;font-size:12px;color:#475569;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;">${esc(rec.reason)}</div>` : '<div style="flex:1;"></div>'}
+          <div style="font-size:11px;font-weight:600;text-align:right;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;white-space:nowrap;line-height:2;">
+            ${costLabel}<br>${sellLabel}<br><span style="color:#cbd5e1;font-size:10px;">※年額登録・月額は年額÷365×30換算</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:10px;font-weight:700;background:#ecfeff;color:#0891b2;padding:2px 8px;border-radius:4px;text-transform:uppercase;">${esc(lic.category||'')}</span>
+        </div>
+        <div style="font-size:16px;font-weight:900;color:#1e293b;">${esc(lic.name||'')} の変更履歴</div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#ecfeff;border:1px solid #a5f3fc;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:12px;">
+          <div><div style="font-size:10px;font-weight:700;color:#0891b2;margin-bottom:4px;">現在の総本数</div>
+            <div style="font-size:28px;font-weight:900;color:#0e7490;">${total}<span style="font-size:12px;color:#67e8f9;margin-left:4px;">本</span></div></div>
+          <div style="border-left:1px solid #a5f3fc;padding-left:16px;">
+            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">契約終了日</div>
+            <div style="font-size:16px;font-weight:900;color:#1e293b;">${lic.anniversaryDate||'未設定'}</div>
+            <div style="margin-top:4px;">${alertBadge(lic)}</div>
+          </div>
+          <div style="border-left:1px solid #a5f3fc;padding-left:16px;">
+            <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:4px;">通知設定</div>
+            <div style="font-size:13px;font-weight:700;color:#1e293b;">${lic.notificationPeriod === 0 ? '通知なし' : `更新の ${lic.notificationPeriod||3}ヶ月前`}</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #a5f3fc;padding-top:12px;display:flex;justify-content:flex-end;">
+          <button onclick="openEditServiceModal('${svcId}')" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #a5f3fc;background:#fff;color:#0891b2;font-family:'Noto Sans JP',sans-serif;transition:all .15s;" onmouseover="this.style.background='#ecfeff'" onmouseout="this.style.background='#fff'">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            基本情報を編集
+          </button>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px;">変更履歴</div>
+      <div style="border-left:2px solid #e2e8f0;padding-left:16px;margin-bottom:20px;max-height:280px;overflow-y:auto;">
+        ${histHTML || '<p style="color:#94a3b8;font-size:13px;padding:16px 0;">履歴がありません</p>'}
+      </div>
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;border:1px solid #e2e8f0;">
+        <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:12px;">新しく記録する</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div><label class="lbl">日付</label><input type="date" id="sh_date" value="${today()}"></div>
+          <div><label class="lbl">種別</label>
+            <select id="sh_type" onchange="var isR=this.value==='更新';document.getElementById('sh_count').value=isR?0:'';document.getElementById('sh_new_end_wrap').style.display=isR?'block':'none';">
+              <option value="追加">追加</option><option value="更新">更新</option><option value="削減">削減</option>
+            </select>
+          </div>
+          <div><label class="lbl">本数（増減分）</label><input type="number" id="sh_count" placeholder="例: 1"></div>
+          <div id="sh_new_end_wrap" style="display:none;grid-column:span 3;">
+            <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
+            <input type="date" id="sh_new_end" style="max-width:200px;">
+          </div>
+          <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="sh_cost" value="${last.costPrice||''}" placeholder="例: 120000"></div>
+          <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="sh_sell" value="${last.sellingPrice||''}" placeholder="例: 150000"></div>
+          <div style="display:flex;align-items:flex-end;gap:10px;">
+            <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="sh_reason" placeholder="例: 年次更新のため"></div>
+            <button class="btn btn-primary" style="background:#0891b2;" onclick="saveServiceHistory('${svcId}')">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+              保存する
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`);
+};
+
+window.saveServiceHistory = async (svcId) => {
+  const lic = state.services.find(l => l.id === svcId); if (!lic) return;
+  const date   = document.getElementById('sh_date')?.value;
+  const type   = document.getElementById('sh_type')?.value;
+  const count  = Number(document.getElementById('sh_count')?.value || 0);
+  const cost   = Number(document.getElementById('sh_cost')?.value || 0);
+  const sell   = Number(document.getElementById('sh_sell')?.value || 0);
+  const reason = document.getElementById('sh_reason')?.value?.trim();
+  const newEnd = document.getElementById('sh_new_end')?.value || '';
+  if (!date) { toast('日付を入力してください', 'error'); return; }
+  if (type === '更新' && !newEnd) { toast('更新時は次回契約終了日を入力してください', 'error'); return; }
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+  const actualCount = type === '削減' ? -Math.abs(count) : count;
+  const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: firstRec.reseller||'', costPrice: cost, sellingPrice: sell };
+  const updateData = { history: [...(lic.history || []), newRec] };
+  if (type === '更新' && newEnd) updateData.anniversaryDate = newEnd;
+  try {
+    await dbUpdate('services', svcId, updateData);
+    toast(type === '更新' ? '更新を記録し、契約終了日を更新しました ✓' : '履歴を追加しました ✓');
+    closeModal();
+  } catch(e) { toast('保存失敗: ' + e.message, 'error'); }
+};
+
+window.deleteServiceHistory = (svcId, histId) => {
+  const lic = state.services.find(l => l.id === svcId); if (!lic) return;
+  showConfirm('この履歴を削除しますか？', async () => {
+    try {
+      await dbUpdate('services', svcId, { history: (lic.history||[]).filter(h => h.id !== histId) });
+      toast('履歴を削除しました'); closeModal();
+    } catch(e) { toast('削除失敗: ' + e.message, 'error'); }
+  });
+};
+
+// 保守・サービス 基本情報編集（ライセンスと同構成、カテゴリはcatDivisions）
+window.openEditServiceModal = (svcId) => {
+  const lic = state.services.find(l => l.id === svcId); if (!lic) return;
+  const cats = [...state.catDivisions].sort((a,b)=>naturalSort(a.name,b.name));
+  const ress = [...state.resellers].sort((a,b)=>naturalSort(a.name,b.name));
+  const catOptions = cats.map(c => `<option value="${esc(c.name)}"${lic.category===c.name?' selected':''}>${esc(c.name)}</option>`).join('');
+  const ctypes = [...state.contractTypes].sort((a,b)=>naturalSort(a.name,b.name));
+  const ptypes = [...state.paymentTypes].sort((a,b)=>naturalSort(a.name,b.name));
+  const ctypeOpts = '<option value="">未選択</option>' + ctypes.map(t=>`<option value="${esc(t.name)}"${lic.contractType===t.name?' selected':''}>${esc(t.name)}</option>`).join('');
+  const ptypeOpts = '<option value="">未選択</option>' + ptypes.map(t=>`<option value="${esc(t.name)}"${lic.paymentType===t.name?' selected':''}>${esc(t.name)}</option>`).join('');
+  const notifOptions = [0,1,2,3,4,5,6].map(n=>`<option value="${n}"${(lic.notificationPeriod===0&&n===0)||((lic.notificationPeriod||3)===n&&n!==0)?' selected':''}>${n===0?'なし':n+'ヵ月前'}</option>`).join('');
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+
+  openModal(`<div class="modal modal-lg">
+    <div class="modal-header">
+      <div><div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:4px;">基本情報の編集</div>
+        <div style="font-size:16px;font-weight:900;color:#1e293b;">${esc(lic.name||'')}</div></div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div><label class="lbl">カテゴリ（区分） *</label><select id="es_cat">${catOptions||'<option value="">（マスタ未登録）</option>'}</select></div>
+        <div><label class="lbl">名称 *</label><input id="es_name" value="${esc(lic.name||'')}"></div>
+        <div><label class="lbl">契約開始日 *</label><input type="date" id="es_start" value="${lic.contractStartDate||''}"></div>
+        <div><label class="lbl">契約終了日 *</label><input type="date" id="es_ann" value="${lic.anniversaryDate||''}"></div>
+        <div style="grid-column:span 2;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;">
+          <div><div style="font-size:13px;font-weight:700;color:#1e293b;">契約更新のお知らせ通知</div></div>
+          <select id="es_notif" style="width:120px;">${notifOptions}</select>
+        </div>
+        <div><label class="lbl">契約形態</label><select id="es_ctype">${ctypeOpts}</select></div>
+        <div><label class="lbl">支払形態</label><select id="es_ptype">${ptypeOpts}</select></div>
+        <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;">
+          <div style="font-size:12px;font-weight:700;color:#0891b2;margin-bottom:12px;">初回購入情報</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+            <div><label class="lbl">リセラー</label><select id="es_res">${'<option value="">未選択</option>' + ress.map(r=>`<option value="${esc(r.name)}"${firstRec.reseller===r.name?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
+            <div><label class="lbl">初回本数</label><input type="number" id="es_count" value="${firstRec.count||''}" min="1"></div>
+            <div><label class="lbl">原価（年額/税抜）</label><input type="number" id="es_cost" value="${firstRec.costPrice||''}"></div>
+            <div><label class="lbl">売価（年額/税抜）</label><input type="number" id="es_sell" value="${firstRec.sellingPrice||''}"></div>
+          </div>
+          <div style="margin-top:12px;"><label class="lbl">初回登録時の理由（任意）</label><input id="es_reason" value="${esc(firstRec.reason||'')}"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" style="background:#0891b2;" onclick="confirmEditService('${svcId}')">変更内容を確認する</button>
+    </div>
+  </div>`);
+};
+
+window.confirmEditService = (svcId) => {
+  const lic = state.services.find(l => l.id === svcId); if (!lic) return;
+  const newCat   = document.getElementById('es_cat')?.value?.trim();
+  const newName  = document.getElementById('es_name')?.value?.trim();
+  const newStart = document.getElementById('es_start')?.value;
+  const newAnn   = document.getElementById('es_ann')?.value;
+  const newNotif = Number(document.getElementById('es_notif')?.value ?? 3);
+  const newCtype = document.getElementById('es_ctype')?.value?.trim();
+  const newPtype = document.getElementById('es_ptype')?.value?.trim();
+  const newRes   = document.getElementById('es_res')?.value?.trim();
+  const newCount = Number(document.getElementById('es_count')?.value || 0);
+  const newCost  = Number(document.getElementById('es_cost')?.value || 0);
+  const newSell  = Number(document.getElementById('es_sell')?.value || 0);
+  const newReason= document.getElementById('es_reason')?.value?.trim();
+  if (!newName || !newStart || !newAnn) { toast('必須項目を入力してください', 'error'); return; }
+  const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
+  const changes = [];
+  if (newCat   !== (lic.category||''))           changes.push(`カテゴリ: ${lic.category||'―'} → ${newCat}`);
+  if (newName  !== (lic.name||''))               changes.push(`名称: ${lic.name||'―'} → ${newName}`);
+  if (newStart !== (lic.contractStartDate||''))  changes.push(`契約開始日: ${lic.contractStartDate||'―'} → ${newStart}`);
+  if (newAnn   !== (lic.anniversaryDate||''))    changes.push(`契約終了日: ${lic.anniversaryDate||'―'} → ${newAnn}`);
+  if (newNotif !== (lic.notificationPeriod||3))  changes.push(`通知: ${lic.notificationPeriod||3}ヵ月前 → ${newNotif===0?'なし':newNotif+'ヵ月前'}`);
+  if (newCtype !== (lic.contractType||''))       changes.push(`契約形態: ${lic.contractType||'―'} → ${newCtype||'―'}`);
+  if (newPtype !== (lic.paymentType||''))        changes.push(`支払形態: ${lic.paymentType||'―'} → ${newPtype||'―'}`);
+  if (newRes   !== (firstRec.reseller||''))      changes.push(`リセラー変更あり`);
+  if (newCount !== (firstRec.count||0))          changes.push(`初回本数: ${firstRec.count||0}本 → ${newCount}本`);
+  if (newCost  !== (firstRec.costPrice||0))      changes.push(`原価: ¥${(firstRec.costPrice||0).toLocaleString()} → ¥${newCost.toLocaleString()}`);
+  if (newSell  !== (firstRec.sellingPrice||0))   changes.push(`売価: ¥${(firstRec.sellingPrice||0).toLocaleString()} → ¥${newSell.toLocaleString()}`);
+  const changeText = changes.length > 0 ? changes.join('\n') : '変更はありません';
+  showConfirm(
+    `以下の内容に変更します。よろしいですか？\n\n${changeText}`,
+    async () => {
+      try {
+        const updatedHistory = (lic.history||[]).map(h => {
+          if (h.id === firstRec.id) return { ...h, reseller: newRes, count: newCount, costPrice: newCost, sellingPrice: newSell, reason: newReason, date: newStart };
+          return h;
+        });
+        await dbUpdate('services', svcId, {
+          category: newCat, name: newName, contractStartDate: newStart,
+          anniversaryDate: newAnn, notificationPeriod: newNotif,
+          contractType: newCtype||'', paymentType: newPtype||'',
+          history: updatedHistory
+        });
+        toast('基本情報を更新しました ✓'); closeModal();
+      } catch(e) { toast('更新失敗: ' + e.message, 'error'); }
+    },
+    '変更する', '#0891b2',
     '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>'
   );
 };
