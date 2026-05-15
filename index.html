@@ -498,35 +498,27 @@ onAuthStateChanged(auth, user => {
       render();
     }
   };
-  onSnapshot(colRef('licenses'), snap => {
-    state.licenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.licenses = true; check(); render();
-    setSyncStatus('● 同期済み');
-  }, () => setSyncStatus('● エラー', '#dc2626', '#fef2f2'));
-  onSnapshot(colRef('services'), snap => {
-    state.services = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.services = true; check(); render();
-  });
-  onSnapshot(colRef('categories'), snap => {
-    state.categories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.categories = true; check(); render();
-  });
-  onSnapshot(colRef('resellers'), snap => {
-    state.resellers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.resellers = true; check(); render();
-  });
-  onSnapshot(colRef('contractTypes'), snap => {
-    state.contractTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.contractTypes = true; check(); render();
-  });
-  onSnapshot(colRef('paymentTypes'), snap => {
-    state.paymentTypes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.paymentTypes = true; check(); render();
-  });
-  onSnapshot(colRef('catDivisions'), snap => {
-    state.catDivisions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    loaded.catDivisions = true; check(); render();
-  });
+  // エラー時もloaded=trueにしてローディングが止まらないようにする
+  const safeSnap = (colName, stateKey, onData) => {
+    onSnapshot(colRef(colName), snap => {
+      state[stateKey] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      loaded[colName] = true;
+      if (onData) onData();
+      check(); render();
+    }, err => {
+      console.warn(`onSnapshot error [${colName}]:`, err);
+      loaded[colName] = true; // エラーでもローディングを進める
+      check();
+    });
+  };
+
+  safeSnap('licenses', 'licenses', () => setSyncStatus('● 同期済み'));
+  safeSnap('services', 'services');
+  safeSnap('categories', 'categories');
+  safeSnap('resellers', 'resellers');
+  safeSnap('contractTypes', 'contractTypes');
+  safeSnap('paymentTypes', 'paymentTypes');
+  safeSnap('catDivisions', 'catDivisions');
 });
 
 async function waitAndConnect() {
