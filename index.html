@@ -299,64 +299,100 @@ async function fetchUsdRate() {
   // 5分キャッシュ
   const now = Date.now();
   if (_cachedRate && now - _cachedRateTime < 300000) return _cachedRate;
-  try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY');
-    const data = await res.json();
-    _cachedRate = data.rates.JPY;
-    _cachedRateTime = now;
-    return _cachedRate;
-  } catch(e) {
-    console.error('為替取得失敗:', e);
-    return null;
+
+  // 複数APIを順番に試す
+  const apis = [
+    async () => {
+      const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY');
+      const d = await r.json(); return d.rates.JPY;
+    },
+    async () => {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
+      const d = await r.json(); return d.rates.JPY;
+    },
+    async () => {
+      const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+      const d = await r.json(); return d.usd.jpy;
+    }
+  ];
+
+  for (const api of apis) {
+    try {
+      const rate = await api();
+      if (rate && rate > 0) {
+        _cachedRate = rate;
+        _cachedRateTime = now;
+        console.log('為替レート取得成功:', rate);
+        return _cachedRate;
+      }
+    } catch(e) {
+      console.warn('API失敗、次を試します:', e.message);
+    }
   }
+  console.error('全APIで為替取得失敗');
+  return null;
 }
 // 通貨セレクタ変更ハンドラ（prefix: モーダルごとのID prefix）
 window.onCurrencyChange = async (prefix) => {
   const cur = document.getElementById(prefix + '_cur')?.value;
   const rateEl = document.getElementById(prefix + '_rate_info');
   if (!rateEl) return;
+
   if (cur === 'JPY') {
+    // 円に戻す
     rateEl.style.display = 'none';
-    // ラベルを円に戻す
     ['cost','sell'].forEach(f => {
       const lbl = document.getElementById(prefix + '_lbl_' + f);
       if (lbl) lbl.textContent = f === 'cost' ? '原価（年額/税抜）' : '売価（年額/税抜）';
+      // 円換算プレビューを非表示
+      const prev = document.getElementById(prefix + '_prev_' + f);
+      if (prev) prev.style.display = 'none';
     });
     return;
   }
-  // USD 選択時
-  rateEl.innerHTML = '<span style="color:#94a3b8;font-size:11px;">レート取得中...</span>';
+
+  // USD選択時 → レート取得
+  rateEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:11px;padding:4px 0;"><div class="spinner" style="width:12px;height:12px;border-width:2px;"></div>レート取得中...</div>';
   rateEl.style.display = 'block';
+
   const rate = await fetchUsdRate();
   if (!rate) {
-    rateEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">⚠ レート取得失敗。手動で円換算してください。</span>';
+    rateEl.innerHTML = '<div style="color:#dc2626;font-size:11px;padding:4px 0;">⚠ レート取得失敗。時間をおいて再度選択してください。</div>';
     return;
   }
   const now = new Date().toLocaleString('ja-JP');
-  rateEl.innerHTML = `<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;">
-    <div style="font-weight:700;color:#92400e;margin-bottom:4px;">💱 取得レート: 1 USD = <span style="font-size:15px;color:#d97706;">${rate.toFixed(2)}</span> 円</div>
-    <div style="color:#92400e;font-size:10px;">取得日時: ${now}（5分間キャッシュ）</div>
-    <div id="${prefix}_jpy_preview" style="margin-top:8px;color:#78350f;font-size:11px;font-weight:700;"></div>
+  rateEl.innerHTML = `<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="font-size:12px;font-weight:700;color:#92400e;">💱 1 USD = <span style="font-size:16px;color:#d97706;">${rate.toFixed(2)}</span> 円</div>
+    <div style="font-size:10px;color:#a16207;">取得: ${now}</div>
   </div>`;
-  // ラベルをUSD表記に
+
+  // ラベルをUSD表記に変更
   ['cost','sell'].forEach(f => {
     const lbl = document.getElementById(prefix + '_lbl_' + f);
     if (lbl) lbl.textContent = f === 'cost' ? '原価（USD/年額/税抜）' : '売価（USD/年額/税抜）';
   });
-  // 既存値があればプレビュー更新
+
+  // 既存値があれば即座にプレビュー更新
   updateJpyPreview(prefix, rate);
 };
 
+// 各入力欄の下に個別で円換算をリアルタイム表示
 window.updateJpyPreview = (prefix, rate) => {
   if (!rate) return;
-  const cost = parseFloat(document.getElementById(prefix + '_cost')?.value || 0);
-  const sell = parseFloat(document.getElementById(prefix + '_sell')?.value || 0);
-  const preview = document.getElementById(prefix + '_jpy_preview');
-  if (!preview) return;
-  const parts = [];
-  if (cost > 0) parts.push(`原価: $${cost.toFixed(2)} → ${new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY'}).format(Math.round(cost * rate))}`);
-  if (sell > 0) parts.push(`売価: $${sell.toFixed(2)} → ${new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY'}).format(Math.round(sell * rate))}`);
-  preview.innerHTML = parts.length > 0 ? '📊 円換算: ' + parts.join('　/　') : '';
+  ['cost','sell'].forEach(f => {
+    const input = document.getElementById(prefix + '_' + f);
+    const prev  = document.getElementById(prefix + '_prev_' + f);
+    if (!input || !prev) return;
+    const val = parseFloat(input.value || 0);
+    if (val > 0) {
+      const jpy = Math.round(val * rate);
+      prev.textContent = `≈ ${new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY'}).format(jpy)}`;
+      prev.style.display = 'block';
+    } else {
+      prev.textContent = '';
+      prev.style.display = 'none';
+    }
+  });
 };
 
 // USD入力時の保存前変換（costPrice/sellingPriceは常に円で保存）
@@ -1143,27 +1179,22 @@ window.openNewLicenseModal = () => {
         <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;font-size:12px;font-weight:700;color:#3b82f6;">初回購入情報</div>
         <div><label class="lbl">リセラー</label><select id="nl_res">${resOptions}</select></div>
         <div><label class="lbl">初回本数 *</label><input type="number" id="nl_count" min="1" placeholder="例: 100"></div>
-        <div style="grid-column:span 2;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <svg width="16" height="16" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <div>
-              <div style="font-size:13px;font-weight:700;color:#1e293b;">通貨選択</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px;">USDを選ぶと現在の為替レートで円換算額を表示します</div>
-            </div>
-          </div>
-          <select id="nl_cur" onchange="onCurrencyChange('nl')" style="width:90px;font-weight:700;">
-            <option value="JPY">¥ 円（JPY）</option>
-            <option value="USD">$ ドル（USD）</option>
-          </select>
-        </div>
         <div id="nl_rate_info" style="display:none;grid-column:span 2;"></div>
         <div>
-          <label class="lbl" id="nl_lbl_cost">原価（年額/税抜）</label>
-          <input type="number" id="nl_cost" value="" min="0" placeholder="例: 48000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('nl',r)})()">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="lbl" id="nl_lbl_cost">原価（年額/税抜）</label>
+            <select id="nl_cur" onchange="onCurrencyChange('nl')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+              <option value="JPY">¥ 円（JPY）</option>
+              <option value="USD">$ ドル（USD）</option>
+            </select>
+          </div>
+          <input type="number" id="nl_cost" value="" min="0" placeholder="例: 48000" oninput="(async()=>{if(document.getElementById('nl_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('nl',r)}})()">
+          <div id="nl_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div>
           <label class="lbl" id="nl_lbl_sell">売価（年額/税抜）</label>
-          <input type="number" id="nl_sell" value="" min="0" placeholder="例: 54000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('nl',r)})()">
+          <input type="number" id="nl_sell" value="" min="0" placeholder="例: 54000" oninput="(async()=>{if(document.getElementById('nl_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('nl',r)}})()">
+          <div id="nl_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div style="grid-column:span 2;"><label class="lbl">理由（任意）</label><input id="nl_reason" placeholder="例: 全社導入のため"></div>
       </div>
@@ -1335,27 +1366,22 @@ window.openHistoryModal = (licId) => {
             <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
             <input type="date" id="h_new_end" style="max-width:200px;">
           </div>
-        <div style="grid-column:span 2;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <svg width="16" height="16" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <div>
-              <div style="font-size:13px;font-weight:700;color:#1e293b;">通貨選択</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px;">USDを選ぶと現在の為替レートで円換算額を表示します</div>
-            </div>
-          </div>
-          <select id="h_cur" onchange="onCurrencyChange('h')" style="width:90px;font-weight:700;">
-            <option value="JPY">¥ 円（JPY）</option>
-            <option value="USD">$ ドル（USD）</option>
-          </select>
-        </div>
         <div id="h_rate_info" style="display:none;grid-column:span 2;"></div>
         <div>
-          <label class="lbl" id="h_lbl_cost">原価（年額/税抜）</label>
-          <input type="number" id="h_cost" value="${last.costPrice||''}" min="0" placeholder="例: 48000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('h',r)})()">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="lbl" id="h_lbl_cost">原価（年額/税抜）</label>
+            <select id="h_cur" onchange="onCurrencyChange('h')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+              <option value="JPY">¥ 円（JPY）</option>
+              <option value="USD">$ ドル（USD）</option>
+            </select>
+          </div>
+          <input type="number" id="h_cost" value="${last.costPrice||''}" min="0" placeholder="例: 48000" oninput="(async()=>{if(document.getElementById('h_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('h',r)}})()">
+          <div id="h_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div>
           <label class="lbl" id="h_lbl_sell">売価（年額/税抜）</label>
-          <input type="number" id="h_sell" value="${last.sellingPrice||''}" min="0" placeholder="例: 54000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('h',r)})()">
+          <input type="number" id="h_sell" value="${last.sellingPrice||''}" min="0" placeholder="例: 54000" oninput="(async()=>{if(document.getElementById('h_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('h',r)}})()">
+          <div id="h_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
           <div style="display:flex;align-items:flex-end;gap:10px;">
             <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="h_reason" placeholder="例: 年次更新のため"></div>
@@ -1459,16 +1485,23 @@ window.openEditLicenseModal = (licId) => {
               <select id="el_res">${resOptions.replace(`value="${esc(firstRec.reseller||'')}"`, `value="${esc(firstRec.reseller||'')}" selected`)}</select>
             </div>
             <div><label class="lbl">初回本数</label><input type="number" id="el_count" value="${firstRec.count||''}" min="1" placeholder="例: 100"></div>
+            <div id="el_rate_info" style="display:none;grid-column:span 2;"></div>
             <div>
-              <label class="lbl">通貨</label>
-              <select id="el_cur" onchange="onCurrencyChange('el')" style="font-weight:700;">
-                <option value="JPY">¥ 円（JPY）</option>
-                <option value="USD">$ ドル（USD）</option>
-              </select>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <label class="lbl" id="el_lbl_cost">原価（年額/税抜）</label>
+                <select id="el_cur" onchange="onCurrencyChange('el')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+                  <option value="JPY">¥ 円（JPY）</option>
+                  <option value="USD">$ ドル（USD）</option>
+                </select>
+              </div>
+              <input type="number" id="el_cost" value="${firstRec.costPrice||''}" placeholder="例: 48000" oninput="(async()=>{if(document.getElementById('el_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('el',r)}})()">
+              <div id="el_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
             </div>
-            <div id="el_rate_info" style="display:none;grid-column:span 1;"></div>
-            <div><label class="lbl" id="el_lbl_cost">原価（年額/税抜）</label><input type="number" id="el_cost" value="${firstRec.costPrice||''}" placeholder="例: 48000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('el',r)})()"></div>
-            <div><label class="lbl" id="el_lbl_sell">売価（年額/税抜）</label><input type="number" id="el_sell" value="${firstRec.sellingPrice||''}" placeholder="例: 54000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('el',r)})()"></div>
+            <div>
+              <label class="lbl" id="el_lbl_sell">売価（年額/税抜）</label>
+              <input type="number" id="el_sell" value="${firstRec.sellingPrice||''}" placeholder="例: 54000" oninput="(async()=>{if(document.getElementById('el_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('el',r)}})()">
+              <div id="el_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
+            </div>
           </div>
           <div style="margin-top:12px;"><label class="lbl">初回登録時の理由（任意）</label><input id="el_reason" value="${esc(firstRec.reason||'')}" placeholder="例: 全社導入のため"></div>
         </div>
@@ -1587,27 +1620,22 @@ window.openNewServiceModal = () => {
         <div style="grid-column:span 2;border-top:1px solid #f1f5f9;padding-top:14px;font-size:12px;font-weight:700;color:#0891b2;">初回購入情報</div>
         <div><label class="lbl">リセラー</label><select id="ns_res">${resOptions || '<option value="">（マスタ未登録）</option>'}</select></div>
         <div><label class="lbl">初回本数 *</label><input type="number" id="ns_count" min="1" placeholder="例: 1"></div>
-        <div style="grid-column:span 2;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <svg width="16" height="16" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <div>
-              <div style="font-size:13px;font-weight:700;color:#1e293b;">通貨選択</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px;">USDを選ぶと現在の為替レートで円換算額を表示します</div>
-            </div>
-          </div>
-          <select id="ns_cur" onchange="onCurrencyChange('ns')" style="width:90px;font-weight:700;">
-            <option value="JPY">¥ 円（JPY）</option>
-            <option value="USD">$ ドル（USD）</option>
-          </select>
-        </div>
         <div id="ns_rate_info" style="display:none;grid-column:span 2;"></div>
         <div>
-          <label class="lbl" id="ns_lbl_cost">原価（年額/税抜）</label>
-          <input type="number" id="ns_cost" value="" min="0" placeholder="例: 120000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('ns',r)})()">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="lbl" id="ns_lbl_cost">原価（年額/税抜）</label>
+            <select id="ns_cur" onchange="onCurrencyChange('ns')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+              <option value="JPY">¥ 円（JPY）</option>
+              <option value="USD">$ ドル（USD）</option>
+            </select>
+          </div>
+          <input type="number" id="ns_cost" value="" min="0" placeholder="例: 120000" oninput="(async()=>{if(document.getElementById('ns_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('ns',r)}})()">
+          <div id="ns_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div>
           <label class="lbl" id="ns_lbl_sell">売価（年額/税抜）</label>
-          <input type="number" id="ns_sell" value="" min="0" placeholder="例: 150000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('ns',r)})()">
+          <input type="number" id="ns_sell" value="" min="0" placeholder="例: 150000" oninput="(async()=>{if(document.getElementById('ns_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('ns',r)}})()">
+          <div id="ns_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div style="grid-column:span 2;"><label class="lbl">理由（任意）</label><input id="ns_reason" placeholder="例: サーバー保守契約締結のため"></div>
       </div>
@@ -1761,27 +1789,22 @@ window.openServiceHistoryModal = (svcId) => {
             <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
             <input type="date" id="sh_new_end" style="max-width:200px;">
           </div>
-        <div style="grid-column:span 2;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <svg width="16" height="16" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <div>
-              <div style="font-size:13px;font-weight:700;color:#1e293b;">通貨選択</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:1px;">USDを選ぶと現在の為替レートで円換算額を表示します</div>
-            </div>
-          </div>
-          <select id="sh_cur" onchange="onCurrencyChange('sh')" style="width:90px;font-weight:700;">
-            <option value="JPY">¥ 円（JPY）</option>
-            <option value="USD">$ ドル（USD）</option>
-          </select>
-        </div>
         <div id="sh_rate_info" style="display:none;grid-column:span 2;"></div>
         <div>
-          <label class="lbl" id="sh_lbl_cost">原価（年額/税抜）</label>
-          <input type="number" id="sh_cost" value="${last.costPrice||''}" min="0" placeholder="例: 120000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('sh',r)})()">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="lbl" id="sh_lbl_cost">原価（年額/税抜）</label>
+            <select id="sh_cur" onchange="onCurrencyChange('sh')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+              <option value="JPY">¥ 円（JPY）</option>
+              <option value="USD">$ ドル（USD）</option>
+            </select>
+          </div>
+          <input type="number" id="sh_cost" value="${last.costPrice||''}" min="0" placeholder="例: 120000" oninput="(async()=>{if(document.getElementById('sh_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('sh',r)}})()">
+          <div id="sh_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
         <div>
           <label class="lbl" id="sh_lbl_sell">売価（年額/税抜）</label>
-          <input type="number" id="sh_sell" value="${last.sellingPrice||''}" min="0" placeholder="例: 150000" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('sh',r)})()">
+          <input type="number" id="sh_sell" value="${last.sellingPrice||''}" min="0" placeholder="例: 150000" oninput="(async()=>{if(document.getElementById('sh_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('sh',r)}})()">
+          <div id="sh_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
         </div>
           <div style="display:flex;align-items:flex-end;gap:10px;">
             <div style="flex:1;"><label class="lbl">理由（任意）</label><input id="sh_reason" placeholder="例: 年次更新のため"></div>
@@ -1868,16 +1891,23 @@ window.openEditServiceModal = (svcId) => {
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
             <div><label class="lbl">リセラー</label><select id="es_res">${'<option value="">未選択</option>' + ress.map(r=>`<option value="${esc(r.name)}"${firstRec.reseller===r.name?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
             <div><label class="lbl">初回本数</label><input type="number" id="es_count" value="${firstRec.count||''}" min="1"></div>
+            <div id="es_rate_info" style="display:none;grid-column:span 2;"></div>
             <div>
-              <label class="lbl">通貨</label>
-              <select id="es_cur" onchange="onCurrencyChange('es')" style="font-weight:700;">
-                <option value="JPY">¥ 円（JPY）</option>
-                <option value="USD">$ ドル（USD）</option>
-              </select>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <label class="lbl" id="es_lbl_cost">原価（年額/税抜）</label>
+                <select id="es_cur" onchange="onCurrencyChange('es')" style="width:130px;font-size:11px;font-weight:700;padding:3px 6px;">
+                  <option value="JPY">¥ 円（JPY）</option>
+                  <option value="USD">$ ドル（USD）</option>
+                </select>
+              </div>
+              <input type="number" id="es_cost" value="${firstRec.costPrice||''}" oninput="(async()=>{if(document.getElementById('es_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('es',r)}})()">
+              <div id="es_prev_cost" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
             </div>
-            <div id="es_rate_info" style="display:none;"></div>
-            <div><label class="lbl" id="es_lbl_cost">原価（年額/税抜）</label><input type="number" id="es_cost" value="${firstRec.costPrice||''}" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('es',r)})()"></div>
-            <div><label class="lbl" id="es_lbl_sell">売価（年額/税抜）</label><input type="number" id="es_sell" value="${firstRec.sellingPrice||''}" oninput="(async()=>{const r=_cachedRate||await fetchUsdRate();updateJpyPreview('es',r)})()"></div>
+            <div>
+              <label class="lbl" id="es_lbl_sell">売価（年額/税抜）</label>
+              <input type="number" id="es_sell" value="${firstRec.sellingPrice||''}" oninput="(async()=>{if(document.getElementById('es_cur')?.value==='USD'){const r=_cachedRate||await fetchUsdRate();updateJpyPreview('es',r)}})()">
+              <div id="es_prev_sell" style="display:none;margin-top:4px;font-size:12px;font-weight:700;color:#d97706;padding:4px 8px;background:#fefce8;border-radius:6px;border:1px solid #fde68a;"></div>
+            </div>
           </div>
           <div style="margin-top:12px;"><label class="lbl">初回登録時の理由（任意）</label><input id="es_reason" value="${esc(firstRec.reason||'')}"></div>
         </div>
