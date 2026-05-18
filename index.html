@@ -1260,18 +1260,21 @@ window.saveLicense = async () => {
   const ptype  = document.getElementById('nl_ptype')?.value?.trim();
   const res    = document.getElementById('nl_res')?.value?.trim();
   const count  = Number(document.getElementById('nl_count')?.value || 0);
-  const cost   = Number(document.getElementById('nl_cost')?.value || 0);
-  const sell   = Number(document.getElementById('nl_sell')?.value || 0);
   const reason = document.getElementById('nl_reason')?.value?.trim();
 
   if (!name || !start || !ann || count <= 0) {
     toast('必須項目を入力してください', 'error'); return;
   }
+  const amounts = await resolveAmounts('nl');
+  if (!amounts) return;
   try {
     await dbAdd('licenses', {
       category: cat, name, contractStartDate: start, anniversaryDate: ann, notificationPeriod: notif,
       contractType: ctype || '', paymentType: ptype || '',
-      history: [{ id: `H${Date.now()}`, date: start, type: '新規', count, reason, reseller: res, costPrice: cost, sellingPrice: sell }],
+      history: [{ id: `H${Date.now()}`, date: start, type: '新規', count, reason, reseller: res,
+        costPrice: amounts.costPrice, sellingPrice: amounts.sellingPrice,
+        currency: amounts.currency, usdRate: amounts.usdRate,
+        costUsd: amounts.costUsd, sellUsd: amounts.sellUsd }],
       createdAt: new Date().toISOString()
     });
     toast('ライセンスを登録しました ✓');
@@ -1430,17 +1433,19 @@ window.saveHistory = async (licId) => {
   const date   = document.getElementById('h_date')?.value;
   const type   = document.getElementById('h_type')?.value;
   const count  = Number(document.getElementById('h_count')?.value || 0);
-  const cost   = Number(document.getElementById('h_cost')?.value || 0);
-  const sell   = Number(document.getElementById('h_sell')?.value || 0);
   const reason = document.getElementById('h_reason')?.value?.trim();
   const newEnd = document.getElementById('h_new_end')?.value || '';
   if (!date) { toast('日付を入力してください', 'error'); return; }
   if (type === '更新' && !newEnd) { toast('更新時は次回契約終了日を入力してください', 'error'); return; }
-  // リセラーは初回登録時のものを引き継ぐ
+  const amounts = await resolveAmounts('h');
+  if (!amounts) return;
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
   const inheritedReseller = firstRec.reseller || '';
   const actualCount = type === '削減' ? -Math.abs(count) : count;
-  const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: inheritedReseller, costPrice: cost, sellingPrice: sell };
+  const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: inheritedReseller,
+    costPrice: amounts.costPrice, sellingPrice: amounts.sellingPrice,
+    currency: amounts.currency, usdRate: amounts.usdRate,
+    costUsd: amounts.costUsd, sellUsd: amounts.sellUsd };
   const updateData = { history: [...(lic.history || []), newRec] };
   if (type === '更新' && newEnd) updateData.anniversaryDate = newEnd;
   try {
