@@ -1330,7 +1330,12 @@ window.openHistoryModal = (licId) => {
           ${rec.reason ? `<div style="flex:1;font-size:12px;color:#475569;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;">${esc(rec.reason)}</div>` : '<div style="flex:1;"></div>'}
           <div style="font-size:11px;font-weight:600;text-align:right;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;white-space:nowrap;line-height:2;">
             ${costLabel}<br>${sellLabel}<br><span style="color:#cbd5e1;font-size:10px;">※年額登録・月額は年額÷365×30換算</span>
-            ${rec.currency === 'USD' ? `<br><span style="color:#d97706;font-size:10px;font-weight:700;">💱 USD登録: 原価$${rec.costUsd||0} / 売価$${rec.sellUsd||0}（レート: ${rec.usdRate ? rec.usdRate.toFixed(2) : '―'}円）</span>` : ''}
+            ${rec.currency === 'USD' ? `<br><div style="margin-top:6px;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;text-align:left;">
+              <div style="font-size:10px;font-weight:700;color:#92400e;margin-bottom:2px;">💱 USD登録情報</div>
+              <div style="font-size:11px;color:#78350f;font-weight:700;">原価: <span style="font-size:13px;">$${(rec.costUsd||0).toLocaleString()}</span></div>
+              <div style="font-size:11px;color:#78350f;font-weight:700;">売価: <span style="font-size:13px;">$${(rec.sellUsd||0).toLocaleString()}</span></div>
+              <div style="font-size:10px;color:#a16207;margin-top:2px;">登録時レート: 1USD = ${rec.usdRate ? rec.usdRate.toFixed(2) : '―'}円</div>
+            </div>` : ''}
           </div>
         </div>
       </div>
@@ -1766,7 +1771,12 @@ window.openServiceHistoryModal = (svcId) => {
           ${rec.reason ? `<div style="flex:1;font-size:12px;color:#475569;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;">${esc(rec.reason)}</div>` : '<div style="flex:1;"></div>'}
           <div style="font-size:11px;font-weight:600;text-align:right;background:#fff;border:1px solid #e2e8f0;padding:8px 12px;border-radius:8px;white-space:nowrap;line-height:2;">
             ${costLabel}<br>${sellLabel}<br><span style="color:#cbd5e1;font-size:10px;">※年額登録・月額は年額÷365×30換算</span>
-            ${rec.currency === 'USD' ? `<br><span style="color:#d97706;font-size:10px;font-weight:700;">💱 USD登録: 原価$${rec.costUsd||0} / 売価$${rec.sellUsd||0}（レート: ${rec.usdRate ? rec.usdRate.toFixed(2) : '―'}円）</span>` : ''}
+            ${rec.currency === 'USD' ? `<br><div style="margin-top:6px;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;text-align:left;">
+              <div style="font-size:10px;font-weight:700;color:#92400e;margin-bottom:2px;">💱 USD登録情報</div>
+              <div style="font-size:11px;color:#78350f;font-weight:700;">原価: <span style="font-size:13px;">$${(rec.costUsd||0).toLocaleString()}</span></div>
+              <div style="font-size:11px;color:#78350f;font-weight:700;">売価: <span style="font-size:13px;">$${(rec.sellUsd||0).toLocaleString()}</span></div>
+              <div style="font-size:10px;color:#a16207;margin-top:2px;">登録時レート: 1USD = ${rec.usdRate ? rec.usdRate.toFixed(2) : '―'}円</div>
+            </div>` : ''}
           </div>
         </div>
       </div>
