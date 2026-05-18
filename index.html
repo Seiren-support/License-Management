@@ -615,6 +615,38 @@ if (document.readyState === 'complete') {
   window.addEventListener('load', () => { if (window._authOk) waitAndConnect(); });
 }
 
+// ===== ツールチップ位置調整 =====
+window.showRenewalTooltip = (e, el) => {
+  const tip = el.querySelector('.renewal-tooltip');
+  if (!tip) return;
+  tip.style.display = 'block';
+
+  // ウィンドウサイズ
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const tipW = tip.offsetWidth || 240;
+  const tipH = tip.offsetHeight || 160;
+
+  // バーの位置を基準にする
+  const rect = el.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipW / 2;
+  let top  = rect.top - tipH - 10;
+
+  // 左端はみ出し防止
+  if (left < 8) left = 8;
+  // 右端はみ出し防止
+  if (left + tipW > vw - 8) left = vw - tipW - 8;
+  // 上端はみ出し → バーの下に表示
+  if (top < 8) top = rect.bottom + 10;
+
+  tip.style.left  = left + 'px';
+  tip.style.top   = top  + 'px';
+};
+window.hideRenewalTooltip = (el) => {
+  const tip = el.querySelector('.renewal-tooltip');
+  if (tip) tip.style.display = 'none';
+};
+
 // ===== レンダリング =====
 function render() {
   if (!state.user) return;
@@ -1191,20 +1223,18 @@ function renderAnalytics() {
     ).join('');
 
     const tooltipHTML = count > 0 ? `
-      <div class="renewal-tooltip" style="display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
-        background:#1e293b;border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;z-index:50;
-        box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none;">
+      <div class="renewal-tooltip" data-month="${monthLabels[i].fullLabel}" data-count="${count}"
+        style="display:none;position:fixed;background:#1e293b;border-radius:10px;padding:10px 12px;
+        min-width:200px;max-width:300px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.35);pointer-events:none;">
         <div style="font-size:11px;font-weight:900;color:#94a3b8;margin-bottom:6px;">${monthLabels[i].fullLabel}（${count}件）</div>
         ${tooltipRows}
-        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
-          width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #1e293b;"></div>
       </div>` : '';
 
     const barColor = count === 0 ? '#e2e8f0' : count >= 5 ? '#dc2626' : count >= 3 ? '#f97316' : '#3b82f6';
 
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;"
-        onmouseenter="this.querySelector('.renewal-tooltip')&&(this.querySelector('.renewal-tooltip').style.display='block')"
-        onmouseleave="this.querySelector('.renewal-tooltip')&&(this.querySelector('.renewal-tooltip').style.display='none')">
+        onmouseenter="showRenewalTooltip(event,this)"
+        onmouseleave="hideRenewalTooltip(this)">
       ${tooltipHTML}
       ${count > 0 ? `<div style="font-size:10px;font-weight:900;color:${barColor};">${count}</div>` : ''}
       <div style="width:100%;display:flex;align-items:flex-end;justify-content:center;height:140px;">
