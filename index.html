@@ -1118,6 +1118,7 @@ function renderServiceList() {
 // ===== 分析ダッシュボード =====
 // ダッシュボードの表示フィルター状態
 if (!state.analyticsFilter) state.analyticsFilter = 'all'; // 'all' | 'license' | 'service'
+window.setAnalyticsFilter = (v) => { state.analyticsFilter = v; render(); };
 
 function renderAnalytics() {
   const filter = state.analyticsFilter || 'all';
@@ -1221,7 +1222,7 @@ function renderAnalytics() {
     <!-- 表示切替 -->
     <div style="display:flex;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px;">
       ${[['all','すべて'],['license','ライセンスのみ'],['service','保守・サービスのみ']].map(([v,l]) => `
-        <button onclick="state.analyticsFilter='${v}';render();" style="padding:5px 14px;border-radius:7px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s;
+        <button onclick="setAnalyticsFilter('${v}')" style="padding:5px 14px;border-radius:7px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s;
           background:${filter===v?'#fff':'transparent'};color:${filter===v?'#1e293b':'#94a3b8'};
           box-shadow:${filter===v?'0 1px 4px rgba(0,0,0,.1)':'none'};">${l}</button>`).join('')}
     </div>
