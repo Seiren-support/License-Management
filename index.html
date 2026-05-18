@@ -1116,59 +1116,160 @@ function renderServiceList() {
 }
 
 // ===== 分析ダッシュボード =====
-function renderAnalytics() {
-  let totalCost = 0, totalSell = 0;
-  const byCat = {}, byReseller = {}, monthly = Array(12).fill(0);
-  const now = new Date().getMonth();
+// ダッシュボードの表示フィルター状態
+if (!state.analyticsFilter) state.analyticsFilter = 'all'; // 'all' | 'license' | 'service'
 
-  state.licenses.forEach(lic => {
-    const cnt = calcTotal(lic.history || []);
-    if (cnt <= 0) return;
-    const latest = getLatestInfo(lic.history || []);
-    const sell = cnt * (latest.sellingPrice || 0);
-    const cost = cnt * (latest.costPrice || 0);
-    totalSell += sell; totalCost += cost;
-    const cat = lic.category || 'その他';
-    byCat[cat] = (byCat[cat] || 0) + sell;
-    const r = latest.reseller || '未指定';
-    if (!byReseller[r]) byReseller[r] = { sell: 0, cost: 0, count: 0 };
-    byReseller[r].sell += sell; byReseller[r].cost += cost; byReseller[r].count += cnt;
-    let mi = new Date(lic.anniversaryDate).getMonth() - now;
-    if (mi < 0) mi += 12;
-    monthly[mi] += sell;
-  });
+function renderAnalytics() {
+  const filter = state.analyticsFilter || 'all';
+
+  // コスト集計（ライセンス + 保守・サービス）
+  let totalCost = 0, totalSell = 0;
+  const byCat = {}, byReseller = {};
+  const nowMonth = new Date().getMonth();
+  const nowYear  = new Date().getFullYear();
+
+  // 月ごとの更新対象リストを構築（向こう12ヶ月）
+  // monthRenewals[i] = [{name, date, type:'license'|'service', category}]
+  const monthRenewals = Array.from({length: 12}, () => []);
+
+  const processItems = (items, type) => {
+    items.forEach(lic => {
+      if (lic.active === false) return;
+      const cnt = calcTotal(lic.history || []);
+      if (cnt <= 0) return;
+      const latest = getLatestInfo(lic.history || []);
+      const sell = cnt * (latest.sellingPrice || 0);
+      const cost = cnt * (latest.costPrice || 0);
+      totalSell += sell; totalCost += cost;
+      byCat[lic.category||'その他'] = (byCat[lic.category||'その他'] || 0) + sell;
+      const r = latest.reseller || '未指定';
+      if (!byReseller[r]) byReseller[r] = { sell: 0, cost: 0, count: 0 };
+      byReseller[r].sell += sell; byReseller[r].cost += cost; byReseller[r].count += cnt;
+
+      // 月別更新件数グラフ用
+      if (lic.anniversaryDate) {
+        const annDate = new Date(lic.anniversaryDate);
+        let mi = (annDate.getFullYear() - nowYear) * 12 + annDate.getMonth() - nowMonth;
+        if (mi >= 0 && mi < 12) {
+          monthRenewals[mi].push({
+            name: lic.name || '―',
+            date: lic.anniversaryDate,
+            category: lic.category || '―',
+            type
+          });
+        }
+      }
+    });
+  };
+
+  if (filter === 'all' || filter === 'license') processItems(state.licenses, 'license');
+  if (filter === 'all' || filter === 'service') processItems(state.services, 'service');
 
   const sortedCat = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const sortedRes = Object.entries(byReseller).sort((a, b) => b[1].sell - a[1].sell);
   const maxCat = sortedCat[0]?.[1] || 1;
   const maxRes = sortedRes[0]?.[1].sell || 1;
-  const maxMon = Math.max(...monthly, 1);
-  const monthLabels = Array(12).fill(0).map((_, i) => { const d = new Date(); d.setMonth(d.getMonth() + i); return `${d.getMonth() + 1}月`; });
+  const maxCount = Math.max(...monthRenewals.map(m => m.length), 1);
+  const monthLabels = Array(12).fill(0).map((_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() + i);
+    return { label: `${d.getMonth() + 1}月`, fullLabel: `${d.getFullYear()}年${d.getMonth() + 1}月` };
+  });
+
+  // 棒グラフ用HTML（ホバーで詳細表示）
+  const renewalBars = monthRenewals.map((items, i) => {
+    const count = items.length;
+    const heightPct = count > 0 ? Math.max((count / maxCount) * 100, 8) : 0;
+    // ホバーリスト
+    const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date));
+    const tooltipRows = sorted.map(it =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);">
+        <span style="width:6px;height:6px;border-radius:50%;background:${it.type==='license'?'#60a5fa':'#34d399'};flex-shrink:0;display:inline-block;"></span>
+        <span style="font-size:11px;font-weight:700;color:#fff;">${it.date.slice(5)} ${esc(it.name)}</span>
+        <span style="font-size:10px;color:rgba(255,255,255,.6);margin-left:auto;">${it.type==='license'?'L':'S'}</span>
+      </div>`
+    ).join('');
+
+    const tooltipHTML = count > 0 ? `
+      <div class="renewal-tooltip" style="display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+        background:#1e293b;border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;z-index:50;
+        box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none;">
+        <div style="font-size:11px;font-weight:900;color:#94a3b8;margin-bottom:6px;">${monthLabels[i].fullLabel}（${count}件）</div>
+        ${tooltipRows}
+        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+          width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #1e293b;"></div>
+      </div>` : '';
+
+    const barColor = count === 0 ? '#e2e8f0' : count >= 5 ? '#dc2626' : count >= 3 ? '#f97316' : '#3b82f6';
+
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;"
+        onmouseenter="this.querySelector('.renewal-tooltip')&&(this.querySelector('.renewal-tooltip').style.display='block')"
+        onmouseleave="this.querySelector('.renewal-tooltip')&&(this.querySelector('.renewal-tooltip').style.display='none')">
+      ${tooltipHTML}
+      ${count > 0 ? `<div style="font-size:10px;font-weight:900;color:${barColor};">${count}</div>` : ''}
+      <div style="width:100%;display:flex;align-items:flex-end;justify-content:center;height:140px;">
+        <div style="width:80%;background:${barColor};border-radius:4px 4px 0 0;height:${heightPct}%;
+          transition:all .3s;cursor:${count>0?'pointer':'default'};opacity:${count>0?1:.3};">
+        </div>
+      </div>
+      <span style="font-size:10px;font-weight:700;color:#94a3b8;">${monthLabels[i].label}</span>
+    </div>`;
+  }).join('');
 
   return `
-  <div style="margin-bottom:16px;">
-    <h2 style="font-size:19px;font-weight:900;color:#1e293b;margin-bottom:2px;">分析ダッシュボード</h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <h2 style="font-size:19px;font-weight:900;color:#1e293b;">分析ダッシュボード</h2>
+    <!-- 表示切替 -->
+    <div style="display:flex;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px;">
+      ${[['all','すべて'],['license','ライセンスのみ'],['service','保守・サービスのみ']].map(([v,l]) => `
+        <button onclick="state.analyticsFilter='${v}';render();" style="padding:5px 14px;border-radius:7px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s;
+          background:${filter===v?'#fff':'transparent'};color:${filter===v?'#1e293b':'#94a3b8'};
+          box-shadow:${filter===v?'0 1px 4px rgba(0,0,0,.1)':'none'};">${l}</button>`).join('')}
+    </div>
   </div>
 
   <!-- 合計バナー -->
-  <div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:16px;padding:24px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+  <div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:16px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
     <div>
-      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">年間推定コスト（売価ベース）</div>
-      <div style="font-size:32px;font-weight:900;color:#fff;letter-spacing:-.02em;">${fmt(totalSell)}</div>
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">年間推定コスト（売価ベース）</div>
+      <div style="font-size:30px;font-weight:900;color:#fff;">${fmt(totalSell)}</div>
     </div>
-    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
       <div style="text-align:right;">
-        <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">年間原価</div>
-        <div style="font-size:18px;font-weight:900;color:#94a3b8;">${fmt(totalCost)}</div>
+        <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:2px;">年間原価</div>
+        <div style="font-size:16px;font-weight:900;color:#94a3b8;">${fmt(totalCost)}</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">粗利</div>
-        <div style="font-size:18px;font-weight:900;color:#34d399;">${fmt(totalSell - totalCost)}</div>
+        <div style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:2px;">粗利</div>
+        <div style="font-size:16px;font-weight:900;color:#34d399;">${fmt(totalSell - totalCost)}</div>
       </div>
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <!-- 月別更新件数グラフ（メイン） -->
+  <div class="card" style="padding:20px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:8px;">
+        <svg width="15" height="15" fill="none" stroke="#3b82f6" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        月別 契約更新件数（向こう1年間）
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:11px;font-weight:700;color:#64748b;">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#60a5fa;margin-right:4px;"></span>ライセンス</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34d399;margin-right:4px;"></span>保守・サービス</span>
+        <span style="color:#94a3b8;">棒グラフにカーソルで詳細表示</span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:16px;">
+      <span style="background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-weight:700;margin-right:6px;">5件以上</span>
+      <span style="background:#fff7ed;color:#f97316;padding:1px 6px;border-radius:4px;font-weight:700;margin-right:6px;">3〜4件</span>
+      <span style="background:#eff6ff;color:#3b82f6;padding:1px 6px;border-radius:4px;font-weight:700;">1〜2件</span>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:4px;padding-bottom:4px;">
+      ${renewalBars}
+    </div>
+    ${monthRenewals.every(m => m.length === 0) ? '<p style="text-align:center;color:#94a3b8;font-size:13px;padding:20px 0;">向こう1年間に更新予定の契約はありません</p>' : ''}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
     <!-- カテゴリ別 -->
     <div class="card" style="padding:20px;">
       <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
@@ -1199,50 +1300,6 @@ function renderAnalytics() {
           </div>
           <div class="bar-track"><div class="bar-fill" style="width:${(d.sell/maxRes*100).toFixed(1)}%;background:#7c3aed;"></div></div>
         </div>`).join('')}
-    </div>
-  </div>
-
-  <!-- 月別予測棒グラフ -->
-  <div class="card" style="padding:20px;margin-bottom:16px;">
-    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
-      <svg width="15" height="15" fill="none" stroke="#0891b2" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      向こう1年間の更新コスト予測（月別・売価）
-    </div>
-    <div style="display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:16px;">
-      ${monthly.map((v, i) => `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;" title="${fmt(v)}">
-          ${v > 0 ? `<div style="position:absolute;top:-24px;font-size:9px;font-weight:700;color:#0891b2;white-space:nowrap;">${fmt(v)}</div>` : ''}
-          <div style="width:100%;background:${v > 0 ? '#0891b2' : '#e2e8f0'};border-radius:4px 4px 0 0;height:${v > 0 ? Math.max((v/maxMon*100),5) : 0}%;transition:height .8s;"></div>
-          <span style="font-size:10px;font-weight:700;color:#94a3b8;">${monthLabels[i]}</span>
-        </div>`).join('')}
-    </div>
-  </div>
-
-  <!-- 製品別コストランキング -->
-  <div class="card" style="overflow:hidden;">
-    <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;">
-      <span style="font-size:13px;font-weight:700;color:#1e293b;">項目別コストランキング</span>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="tbl">
-        <thead><tr><th>順位</th><th>製品名</th><th>カテゴリ</th><th>リセラー</th><th style="text-align:right;">本数</th><th style="text-align:right;">年間売価</th><th style="text-align:right;">年間原価</th></tr></thead>
-        <tbody>
-          ${[...state.licenses].filter(l => calcTotal(l.history||[]) > 0).map(l => {
-            const cnt = calcTotal(l.history||[]);
-            const lat = getLatestInfo(l.history||[]);
-            return { l, cnt, sell: cnt*(lat.sellingPrice||0), cost: cnt*(lat.costPrice||0), res: lat.reseller||'未指定' };
-          }).sort((a,b) => b.sell - a.sell).map((item, i) => `
-            <tr>
-              <td style="font-weight:900;color:#cbd5e1;">${i+1}</td>
-              <td style="font-weight:700;">${esc(item.l.name||'')}</td>
-              <td><span class="badge badge-cat">${esc(item.l.category||'')}</span></td>
-              <td style="color:#64748b;font-size:12px;">${esc(item.res)}</td>
-              <td style="text-align:right;font-weight:700;">${item.cnt} 本</td>
-              <td style="text-align:right;font-weight:900;">${fmt(item.sell)}</td>
-              <td style="text-align:right;color:#64748b;">${fmt(item.cost)}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
     </div>
   </div>`;
 }
