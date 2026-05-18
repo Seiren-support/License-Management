@@ -487,9 +487,13 @@ document.getElementById('tabNav').addEventListener('click', e => {
 });
 
 // ===== Firebase 認証 & リアルタイム同期 =====
-onAuthStateChanged(auth, user => {
-  if (!user || !window._authOk) return;
+let _firestoreStarted = false;
+
+function startFirestore(user) {
+  if (_firestoreStarted) return;
+  _firestoreStarted = true;
   state.user = user;
+
   let loaded = { licenses: false, services: false, categories: false, resellers: false, contractTypes: false, paymentTypes: false, catDivisions: false };
   const check = () => {
     if (Object.values(loaded).every(Boolean)) {
@@ -498,7 +502,7 @@ onAuthStateChanged(auth, user => {
       render();
     }
   };
-  // エラー時もloaded=trueにしてローディングが止まらないようにする
+
   const safeSnap = (colName, stateKey, onData) => {
     onSnapshot(colRef(colName), snap => {
       state[stateKey] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -507,7 +511,7 @@ onAuthStateChanged(auth, user => {
       check(); render();
     }, err => {
       console.warn(`onSnapshot error [${colName}]:`, err);
-      loaded[colName] = true; // エラーでもローディングを進める
+      loaded[colName] = true;
       check();
     });
   };
@@ -519,17 +523,32 @@ onAuthStateChanged(auth, user => {
   safeSnap('contractTypes', 'contractTypes');
   safeSnap('paymentTypes', 'paymentTypes');
   safeSnap('catDivisions', 'catDivisions');
+}
+
+onAuthStateChanged(auth, user => {
+  if (!user) return;
+  if (window._authOk) {
+    startFirestore(user);
+  } else {
+    // MSALがまだ完了していない場合は完了を待つ
+    window.addEventListener('msalAuthComplete', () => startFirestore(user), { once: true });
+  }
 });
 
 async function waitAndConnect() {
-  if (window._authOk) { signInAnonymously(auth).catch(console.error); return; }
-  let w = 0;
-  while (!window._authOk && w < 10000) { await new Promise(r => setTimeout(r, 100)); w += 100; }
-  if (window._authOk) signInAnonymously(auth).catch(console.error);
+  try {
+    await signInAnonymously(auth);
+  } catch(e) {
+    console.error('signInAnonymously failed:', e);
+  }
 }
-window.addEventListener('msalAuthComplete', waitAndConnect);
-if (document.readyState === 'complete') { waitAndConnect(); }
-else { window.addEventListener('load', waitAndConnect); }
+window.addEventListener('msalAuthComplete', waitAndConnect, { once: true });
+if (document.readyState === 'complete') {
+  // ページ読み込み完了時: MSALがすでに_authOk済みなら即接続
+  if (window._authOk) waitAndConnect();
+} else {
+  window.addEventListener('load', () => { if (window._authOk) waitAndConnect(); });
+}
 
 // ===== レンダリング =====
 function render() {
