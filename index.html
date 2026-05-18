@@ -1484,7 +1484,7 @@ window.openEditLicenseModal = (licId) => {
   </div>`);
 };
 
-window.confirmEditLicense = (licId) => {
+window.confirmEditLicense = async (licId) => {
   const lic = state.licenses.find(l => l.id === licId); if (!lic) return;
   const newCat    = document.getElementById('el_cat')?.value?.trim();
   const newName   = document.getElementById('el_name')?.value?.trim();
@@ -1890,7 +1890,7 @@ window.openEditServiceModal = (svcId) => {
   </div>`);
 };
 
-window.confirmEditService = (svcId) => {
+window.confirmEditService = async (svcId) => {
   const lic = state.services.find(l => l.id === svcId); if (!lic) return;
   const newCat   = document.getElementById('es_cat')?.value?.trim();
   const newName  = document.getElementById('es_name')?.value?.trim();
