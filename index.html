@@ -715,9 +715,9 @@ function buildListTableHTML() {
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
-        <td style="text-align:right;">
-          ${isActive?`<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
-          <button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:4px 8px;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
+        <td style="text-align:right;white-space:nowrap;">
+          ${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
+          <button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
           <button onclick="deleteLicense('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button>
         </td>
       </tr>`;
@@ -776,9 +776,9 @@ function buildSvcTableHTML() {
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
-        <td style="text-align:right;">
-          ${isActive?`<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openServiceHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
-          <button onclick="toggleServiceActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:4px 8px;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
+        <td style="text-align:right;white-space:nowrap;">
+          ${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="openServiceHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
+          <button onclick="toggleServiceActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
           <button onclick="deleteService('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button>
         </td>
       </tr>`;
@@ -883,7 +883,7 @@ function renderList() {
       <td>${lic.contractType ? `<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td>${lic.paymentType ? `<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td style="text-align:right;">
-        ${isActive ? `<button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${lic.id}')">
+        ${isActive ? `<button class="btn btn-ghost btn-sm" style="white-space:nowrap;" onclick="openHistoryModal('${lic.id}')">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           履歴・追加
         </button>` : ''}
@@ -1049,7 +1049,7 @@ function renderServiceList() {
       <td>${lic.contractType ? `<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td>${lic.paymentType ? `<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td style="text-align:right;">
-        ${isActive ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openServiceHistoryModal('${lic.id}')">
+        ${isActive ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="openServiceHistoryModal('${lic.id}')">
           <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           履歴
         </button>` : ''}
