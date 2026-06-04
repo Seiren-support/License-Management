@@ -51,7 +51,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);background:#fff
 label.lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--slate-light);display:block;margin-bottom:4px;}
 
 /* ボタン */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s;border:none;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s;border:none;white-space:nowrap;}
 .btn:active{transform:scale(.97);}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 6px rgba(59,130,246,.3);}
 .btn-primary:hover{background:var(--blue-dark);}
@@ -715,11 +715,7 @@ function buildListTableHTML() {
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
-        <td style="text-align:right;white-space:nowrap;"><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
-          ${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
-          <button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
-          <button onclick="deleteLicense('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:4px;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button>
-        </div></td>
+        <td style="text-align:right;"><div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;flex-wrap:nowrap;">${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}<button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button><button onclick="deleteLicense('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:3px;flex-shrink:0;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button></div></td>
       </tr>`;
     }).join('');
     return `<div style="border-bottom:1px solid #f1f5f9;">
@@ -729,7 +725,7 @@ function buildListTableHTML() {
         <span style="font-size:14px;font-weight:700;color:#1e293b;">${esc(cat)}</span>
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 製品</span>
       </div>
-      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:80px;"></colgroup><thead><tr>
+      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:160px;"></colgroup><thead><tr>
         <th style="font-size:10px;">製品名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`:''}
     </div>`;
@@ -776,11 +772,7 @@ function buildSvcTableHTML() {
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
         <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
-        <td style="text-align:right;white-space:nowrap;"><div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
-          ${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;" onclick="openServiceHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
-          <button onclick="toggleServiceActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
-          <button onclick="deleteService('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:4px;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button>
-        </div></td>
+        <td style="text-align:right;"><div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;flex-wrap:nowrap;">${isActive?`<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;" onclick="openServiceHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}<button onclick="toggleServiceActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button><button onclick="deleteService('${lic.id}','${esc(lic.name||'')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:3px;flex-shrink:0;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button></div></td>
       </tr>`;
     }).join('');
     return `<div style="border-bottom:1px solid #f1f5f9;">
@@ -790,7 +782,7 @@ function buildSvcTableHTML() {
         <span style="font-size:14px;font-weight:700;color:#1e293b;">${esc(cat)}</span>
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 件</span>
       </div>
-      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:80px;"></colgroup><thead><tr>
+      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:160px;"></colgroup><thead><tr>
         <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`:''}
     </div>`;
@@ -882,18 +874,7 @@ function renderList() {
       </td>
       <td>${lic.contractType ? `<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
       <td>${lic.paymentType ? `<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>` : '<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
-      <td style="text-align:right;">
-        ${isActive ? `<button class="btn btn-ghost btn-sm" style="white-space:nowrap;" onclick="openHistoryModal('${lic.id}')">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          履歴・追加
-        </button>` : ''}
-        <button onclick="toggleLicenseActive('${lic.id}',${isActive})" title="${isActive ? '無効にする' : '有効にする'}" style="background:none;border:1.5px solid ${isActive ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive ? '#94a3b8' : '#059669'};margin-left:4px;padding:4px 8px;vertical-align:middle;transition:all .15s;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;" onmouseover="this.style.background='${isActive ? '#fef2f2' : '#f0fdf4'}';this.style.borderColor='${isActive ? '#fca5a5' : '#86efac'}';this.style.color='${isActive ? '#dc2626' : '#15803d'}'" onmouseout="this.style.background='';this.style.borderColor='${isActive ? '#e2e8f0' : '#bbf7d0'}';this.style.color='${isActive ? '#94a3b8' : '#059669'}'">
-          ${isActive ? '無効' : '有効'}
-        </button>
-        <button onclick="deleteLicense('${lic.id}','${esc(lic.name || '')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;margin-left:4px;padding:4px;vertical-align:middle;transition:color .15s;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg>
-        </button>
-      </td>
+      <td style="text-align:right;"><div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;flex-wrap:nowrap;">${isActive ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;white-space:nowrap;flex-shrink:0;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>` : ''}<button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive ? '#e2e8f0' : '#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive ? '#94a3b8' : '#059669'};padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;font-family:'Noto Sans JP',sans-serif;">${isActive ? '無効' : '有効'}</button><button onclick="deleteLicense('${lic.id}','${esc(lic.name || '')}')" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:3px;flex-shrink:0;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#e2e8f0'"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/></svg></button></div></td>
     </tr>`;
   }).join('');
 
@@ -907,7 +888,7 @@ function renderList() {
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 製品</span>
       </div>
       ${isOpen ? `<div style="overflow-x:auto;">
-        <table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:80px;"></colgroup>
+        <table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:160px;"></colgroup>
           <thead><tr>
             <th style="font-size:10px;">製品名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
           </tr></thead>
@@ -1073,7 +1054,7 @@ function renderServiceList() {
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 件</span>
       </div>
       ${isOpen ? `<div style="overflow-x:auto;">
-        <table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:80px;"></colgroup>
+        <table class="tbl"><colgroup><col style="width:200px;"><col style="width:55px;"><col style="width:110px;"><col style="width:95px;"><col style="width:95px;"><col style="width:80px;"><col style="width:80px;"><col style="width:160px;"></colgroup>
           <thead><tr>
             <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
           </tr></thead>
