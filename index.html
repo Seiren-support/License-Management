@@ -709,12 +709,12 @@ function buildListTableHTML() {
           <span style="font-weight:700;font-size:12px;color:${isActive?'#1e293b':'#94a3b8'};white-space:normal;word-break:break-all;" title="${esc(lic.name||'')}">${esc(lic.name||'―')}</span>
           ${!isActive?'<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;flex-shrink:0;">無効</span>':''}
         </div></td>
-        <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+        <td style="text-align:center;"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
         <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
         <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
-        <td>${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
-        <td>${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
+        <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
+        <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
         <td style="text-align:right;">
           ${isActive?`<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
           <button onclick="toggleLicenseActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:4px 8px;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
@@ -729,8 +729,8 @@ function buildListTableHTML() {
         <span style="font-size:14px;font-weight:700;color:#1e293b;">${esc(cat)}</span>
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 製品</span>
       </div>
-      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><thead><tr>
-        <th style="font-size:10px;">製品名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
+      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:auto;min-width:160px;"><col style="width:60px;"><col style="width:120px;"><col style="width:100px;"><col style="width:100px;"><col style="width:90px;"><col style="width:90px;"><col style="width:90px;"></colgroup><thead><tr>
+        <th style="font-size:10px;">製品名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`:''}
     </div>`;
   }).join('');
@@ -770,12 +770,12 @@ function buildSvcTableHTML() {
           <span style="font-weight:700;font-size:12px;color:${isActive?'#1e293b':'#94a3b8'};white-space:normal;word-break:break-all;" title="${esc(lic.name||'')}">${esc(lic.name||'―')}</span>
           ${!isActive?'<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;">無効</span>':''}
         </div></td>
-        <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+        <td style="text-align:center;"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
         <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
         <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
         <td style="white-space:nowrap;"><span style="font-weight:700;font-size:11px;color:#1e293b;">${lic.anniversaryDate||'―'}</span>${isActive?`<span style="display:inline-block;margin-left:4px;">${alertBadge(lic)}</span>`:''}</td>
-        <td>${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
-        <td>${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
+        <td style="padding-left:8px;padding-right:8px;">${lic.contractType?`<span style="background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #bbf7d0;">${esc(lic.contractType)}</span>`:'<span style="color:#cbd5e1;font-size:12px;">―</span>'}</td>
+        <td style="padding-left:8px;padding-right:8px;">${lic.paymentType?`<span style="background:#fdf4ff;color:#7e22ce;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #e9d5ff;">${esc(lic.paymentType)}</span>`:'<span style="color:#cbd5e1;font-size:11px;">―</span>'}</td>
         <td style="text-align:right;">
           ${isActive?`<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="openServiceHistoryModal('${lic.id}')"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>履歴</button>`:''}
           <button onclick="toggleServiceActive('${lic.id}',${isActive})" style="background:none;border:1.5px solid ${isActive?'#e2e8f0':'#bbf7d0'};border-radius:6px;cursor:pointer;color:${isActive?'#94a3b8':'#059669'};margin-left:4px;padding:4px 8px;font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;">${isActive?'無効':'有効'}</button>
@@ -790,8 +790,8 @@ function buildSvcTableHTML() {
         <span style="font-size:14px;font-weight:700;color:#1e293b;">${esc(cat)}</span>
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 件</span>
       </div>
-      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><thead><tr>
-        <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
+      ${isOpen?`<div style="overflow-x:auto;"><table class="tbl"><colgroup><col style="width:auto;min-width:160px;"><col style="width:60px;"><col style="width:120px;"><col style="width:100px;"><col style="width:100px;"><col style="width:90px;"><col style="width:90px;"><col style="width:90px;"></colgroup><thead><tr>
+        <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`:''}
     </div>`;
   }).join('');
@@ -873,7 +873,7 @@ function renderList() {
           ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;flex-shrink:0;">無効</span>' : ''}
         </div>
       </td>
-      <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+      <td style="text-align:center;"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
       <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
       <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
       <td style="white-space:nowrap;">
@@ -907,9 +907,9 @@ function renderList() {
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 製品</span>
       </div>
       ${isOpen ? `<div style="overflow-x:auto;">
-        <table class="tbl">
+        <table class="tbl"><colgroup><col style="width:auto;min-width:160px;"><col style="width:60px;"><col style="width:120px;"><col style="width:100px;"><col style="width:100px;"><col style="width:90px;"><col style="width:90px;"><col style="width:90px;"></colgroup>
           <thead><tr>
-            <th style="font-size:10px;">製品名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
+            <th style="font-size:10px;">製品名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
           </tr></thead>
           <tbody>${tableRows(items)}</tbody>
         </table>
@@ -1039,7 +1039,7 @@ function renderServiceList() {
           ${!isActive ? '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#94a3b8;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;flex-shrink:0;">無効</span>' : ''}
         </div>
       </td>
-      <td><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
+      <td style="text-align:center;"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${total}本</span></td>
       <td style="color:#475569;font-size:11px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(firstReseller)}">${esc(firstReseller)}</td>
       <td style="color:#64748b;font-size:11px;white-space:nowrap;">${getLastRenewalDate(lic)}</td>
       <td style="white-space:nowrap;">
@@ -1073,9 +1073,9 @@ function renderServiceList() {
         <span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;border:1px solid #e2e8f0;">${items.length} 件</span>
       </div>
       ${isOpen ? `<div style="overflow-x:auto;">
-        <table class="tbl">
+        <table class="tbl"><colgroup><col style="width:auto;min-width:160px;"><col style="width:60px;"><col style="width:120px;"><col style="width:100px;"><col style="width:100px;"><col style="width:90px;"><col style="width:90px;"><col style="width:90px;"></colgroup>
           <thead><tr>
-            <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
+            <th style="font-size:10px;">製品・サービス名</th><th style="font-size:10px;text-align:center;">本数</th><th style="font-size:10px;">リセラー</th><th style="font-size:10px;">契約更新日</th><th style="font-size:10px;">契約終了日</th><th style="font-size:10px;">契約形態</th><th style="font-size:10px;">支払形態</th><th style="text-align:right;font-size:10px;">アクション</th>
           </tr></thead>
           <tbody>${tableRows(items)}</tbody>
         </table>
