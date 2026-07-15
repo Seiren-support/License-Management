@@ -1504,7 +1504,8 @@ window.openHistoryModal = (licId) => {
 
   const sortedHist = [...(lic.history || [])].sort((a, b) => (b.date||'').localeCompare(a.date||''));
   const histHTML = sortedHist.map((rec, idx) => {
-    const prev = sortedHist[idx + 1];
+    // 「前回」= より古い履歴の中で直近の「新規」または「更新」レコード
+    const prev = sortedHist.slice(idx + 1).find(h => h.type === '新規' || h.type === '更新') || null;
     // 年額 ÷ 365 × 30 で月額換算して比較
     const toMonthly = (annual) => Math.round((annual || 0) / 365 * 30);
     const recCostM  = toMonthly(rec.costPrice);
@@ -1516,8 +1517,10 @@ window.openHistoryModal = (licId) => {
     const diffTag = (diff) => diff > 0
       ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:3px;font-weight:700;">▲${fmt(diff)}/月</span>`
       : `<span style="font-size:10px;background:#f0fdf4;color:#059669;padding:1px 5px;border-radius:3px;font-weight:700;">▼${fmt(Math.abs(diff))}/月</span>`;
-    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
-    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
+    // 追加・削減レコードは金額差分を表示しない
+    const showDiff = rec.type === '新規' || rec.type === '更新';
+    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${showDiff && prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
+    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${showDiff && prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
     return `
     <div style="position:relative;padding-left:20px;margin-bottom:14px;">
       <div style="position:absolute;left:-5px;top:5px;width:12px;height:12px;border-radius:50%;background:${typeDot[rec.type]||'#94a3b8'};border:3px solid #fff;box-shadow:0 0 0 1px #e2e8f0;"></div>
@@ -1598,14 +1601,16 @@ window.openHistoryModal = (licId) => {
           <div><label class="lbl">日付</label><input type="date" id="h_date" value="${today()}"></div>
           <div><label class="lbl">種別</label>
             <select id="h_type" onchange="
-              var isRenew = this.value==='更新';
-              document.getElementById('h_count').value = isRenew ? 0 : '';
+              var v = this.value;
+              var isRenew = v === '更新';
+              var countWrap = document.getElementById('h_count_wrap');
+              if (countWrap) countWrap.style.display = isRenew ? 'none' : 'block';
               document.getElementById('h_new_end_wrap').style.display = isRenew ? 'block' : 'none';
             ">
               <option value="追加">追加</option><option value="更新">更新</option><option value="削減">削減</option>
             </select>
           </div>
-          <div><label class="lbl">本数（増減分）</label><input type="number" id="h_count" placeholder="例: 10"></div>
+          <div id="h_count_wrap"><label class="lbl">本数（増減分）</label><input type="number" id="h_count" placeholder="例: 10"></div>
           <div id="h_new_end_wrap" style="display:none;grid-column:span 3;">
             <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
             <input type="date" id="h_new_end" style="max-width:200px;">
@@ -1649,11 +1654,19 @@ window.saveHistory = async (licId) => {
   const newEnd = document.getElementById('h_new_end')?.value || '';
   if (!date) { toast('日付を入力してください', 'error'); return; }
   if (type === '更新' && !newEnd) { toast('更新時は次回契約終了日を入力してください', 'error'); return; }
+  const currentTotal = calcTotal(lic.history || []);
+  // 更新: 本数は変わらない（count=0で記録）
+  // 削減: 現在の本数を超えてはいけない
+  if (type === '削減') {
+    if (count <= 0) { toast('削減本数は1以上を入力してください', 'error'); return; }
+    if (count > currentTotal) { toast(`削減本数が現在の総本数（${currentTotal}本）を超えています`, 'error'); return; }
+  }
   const amounts = await resolveAmounts('h');
   if (!amounts) return;
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
   const inheritedReseller = firstRec.reseller || '';
-  const actualCount = type === '削減' ? -Math.abs(count) : count;
+  // 更新は本数0（総本数に影響しない）、削減はマイナス
+  const actualCount = type === '更新' ? 0 : type === '削減' ? -Math.abs(count) : count;
   const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: inheritedReseller,
     costPrice: amounts.costPrice, sellingPrice: amounts.sellingPrice,
     currency: amounts.currency, usdRate: amounts.usdRate,
@@ -1949,7 +1962,7 @@ window.openServiceHistoryModal = (svcId) => {
 
   const sortedHist = [...(lic.history || [])].sort((a, b) => (b.date||'').localeCompare(a.date||''));
   const histHTML = sortedHist.map((rec, idx) => {
-    const prev = sortedHist[idx + 1];
+    const prev = sortedHist.slice(idx + 1).find(h => h.type === '新規' || h.type === '更新') || null;
     const toMonthly = (annual) => Math.round((annual || 0) / 365 * 30);
     const recCostM = toMonthly(rec.costPrice), recSellM = toMonthly(rec.sellingPrice);
     const costDiffM = prev ? recCostM - toMonthly(prev.costPrice) : 0;
@@ -1957,8 +1970,10 @@ window.openServiceHistoryModal = (svcId) => {
     const diffTag = (diff) => diff > 0
       ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:3px;font-weight:700;">▲${fmt(diff)}/月</span>`
       : `<span style="font-size:10px;background:#f0fdf4;color:#059669;padding:1px 5px;border-radius:3px;font-weight:700;">▼${fmt(Math.abs(diff))}/月</span>`;
-    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
-    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
+    // 追加・削減レコードは金額差分を表示しない
+    const showDiff = rec.type === '新規' || rec.type === '更新';
+    const costLabel = `<span style="color:#94a3b8;">原価: ${fmt(rec.costPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recCostM)})</span></span>${showDiff && prev && costDiffM !== 0 ? ' ' + diffTag(costDiffM) : ''}`;
+    const sellLabel = `<span style="color:#1e293b;">売価: ${fmt(rec.sellingPrice)}<span style="font-size:10px;margin-left:4px;">(月額 ${fmt(recSellM)})</span></span>${showDiff && prev && sellDiffM !== 0 ? ' ' + diffTag(sellDiffM) : ''}`;
     return `
     <div style="position:relative;padding-left:20px;margin-bottom:14px;">
       <div style="position:absolute;left:-5px;top:5px;width:12px;height:12px;border-radius:50%;background:${typeDot[rec.type]||'#94a3b8'};border:3px solid #fff;box-shadow:0 0 0 1px #e2e8f0;"></div>
@@ -2031,11 +2046,11 @@ window.openServiceHistoryModal = (svcId) => {
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <div><label class="lbl">日付</label><input type="date" id="sh_date" value="${today()}"></div>
           <div><label class="lbl">種別</label>
-            <select id="sh_type" onchange="var isR=this.value==='更新';document.getElementById('sh_count').value=isR?0:'';document.getElementById('sh_new_end_wrap').style.display=isR?'block':'none';">
+            <select id="sh_type" onchange="var v=this.value;var isR=v==='更新';var cw=document.getElementById('sh_count_wrap');if(cw)cw.style.display=isR?'none':'block';document.getElementById('sh_new_end_wrap').style.display=isR?'block':'none';">
               <option value="追加">追加</option><option value="更新">更新</option><option value="削減">削減</option>
             </select>
           </div>
-          <div><label class="lbl">本数（増減分）</label><input type="number" id="sh_count" placeholder="例: 1"></div>
+          <div id="sh_count_wrap"><label class="lbl">本数（増減分）</label><input type="number" id="sh_count" placeholder="例: 1"></div>
           <div id="sh_new_end_wrap" style="display:none;grid-column:span 3;">
             <label class="lbl">次回契約終了日 <span style="color:#dc2626;">*</span></label>
             <input type="date" id="sh_new_end" style="max-width:200px;">
@@ -2079,8 +2094,13 @@ window.saveServiceHistory = async (svcId) => {
   const newEnd = document.getElementById('sh_new_end')?.value || '';
   if (!date) { toast('日付を入力してください', 'error'); return; }
   if (type === '更新' && !newEnd) { toast('更新時は次回契約終了日を入力してください', 'error'); return; }
+  const currentTotal = calcTotal(lic.history || []);
+  if (type === '削減') {
+    if (count <= 0) { toast('削減本数は1以上を入力してください', 'error'); return; }
+    if (count > currentTotal) { toast(`削減本数が現在の総本数（${currentTotal}本）を超えています`, 'error'); return; }
+  }
   const firstRec = [...(lic.history||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).find(h=>h.type==='新規') || (lic.history||[])[0] || {};
-  const actualCount = type === '削減' ? -Math.abs(count) : count;
+  const actualCount = type === '更新' ? 0 : type === '削減' ? -Math.abs(count) : count;
   const amounts = await resolveAmounts('sh');
   if (!amounts) return;
   const newRec = { id: `H${Date.now()}`, date, type, count: actualCount, reason, reseller: firstRec.reseller||'',
